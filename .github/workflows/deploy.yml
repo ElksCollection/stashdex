@@ -1,0 +1,63 @@
+# Haalt elke nacht alle kaartdata op en zet de website online.
+# Bij een gewone wijziging in de code wordt de website alleen opnieuw online gezet.
+name: Kaartdata ophalen en website publiceren
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * *"   # elke nacht om 03:00 UTC (05:00 Nederlandse zomertijd)
+  workflow_dispatch:      # handmatig starten via GitHub
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python klaarzetten
+        if: github.event_name != 'push'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Kaartdata ophalen
+        if: github.event_name != 'push'
+        env:
+          POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
+        run: python scripts/fetch_cards.py
+
+      - name: Nieuwe data opslaan in de codemap
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "stashdex-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "Geen wijzigingen in de data."
+          else
+            git commit -m "Kaartdata bijgewerkt ($(date -u +%Y-%m-%d))"
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
