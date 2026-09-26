@@ -1,0 +1,15 @@
+# Systeem- en editorbestanden
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+
+# Geheimen en lokale instellingen nooit uploaden
+.env
+.env.*
+
+# Tijdelijke bestanden
+*.tmp
+*.log
+node_modules/
+__pycache__/
