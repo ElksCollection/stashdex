@@ -145,7 +145,14 @@
         password: $("password").value,
       });
       $("loginBtn").disabled = false;
-      if (error) $("error").textContent = "Inloggen mislukt: controleer e-mail en wachtwoord.";
+      // Duidelijke melding per oorzaak, met de technische code erbij voor het zoeken naar de fout
+      const reasons = {
+        invalid_credentials: "E-mail of wachtwoord klopt niet.",
+        email_not_confirmed: "Dit e-mailadres is nog niet bevestigd in Supabase.",
+        over_request_rate_limit: "Te veel pogingen, probeer het over een paar minuten opnieuw.",
+      };
+      if (error) $("error").textContent =
+        `Inloggen mislukt: ${reasons[error.code] || error.message} (${error.code || error.status})`;
     });
 
     $("logoutBtn").addEventListener("click", () => supabase.auth.signOut());
