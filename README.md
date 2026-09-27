@@ -5,8 +5,19 @@ en kaarten met actuele prijzen, eigen collectie en wensenlijst.
 
 - Live: https://elkscollection.github.io/stashdex/
 - Website: GitHub Pages (statische HTML/CSS/JavaScript).
-- Kaartdata en prijzen: pokemontcg.io (wordt later elke nacht automatisch opgehaald).
+- Kaartdata en prijzen: pokemontcg.io (elke nacht automatisch opgehaald).
 - Collectie en wensenlijst: Supabase, met login.
+
+## Opbouw van de code
+- `index.html`: inlogschermen en een lege plek voor de app.
+- `css/design-system.css`: het ontwerpsysteem (kopie van het Kaartenkluis-
+  ontwerp uit Claude Design; klassen beginnen met `kk-`).
+- `css/app.css`: kleuren en de indeling van deze app.
+- `js/supabase-client.js`: verbinding met Supabase ("Onthoud mij", foutmeldingen).
+- `js/auth.js`: inloggen, wachtwoord vergeten, nieuw wachtwoord.
+- `js/app.js`: de app zelf (menubalk, setpaneel, kaarten, kaartdetail).
+- `js/rarity.js`: zeldzaamheidsladder (acht niveaus) en kaarttypes.
+- `supabase/schema.sql`: tabellen en beveiliging in Supabase.
 
 ## Kaartdata
 - `scripts/fetch_cards.py` haalt alle sets en kaarten op en schrijft:

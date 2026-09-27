@@ -1,0 +1,264 @@
+@import url("https://fonts.googleapis.com/css2?family=Titan+One&family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Figtree:wght@400..800&family=Space+Mono:wght@400;700&display=swap");
+/* Kaartenkluis components — every colour, radius and shadow is a token from tokens.css */
+:root{--kk-spring:cubic-bezier(.34,1.56,.64,1);--kk-ease:cubic-bezier(.22,.8,.3,1);
+  --kk-holo:linear-gradient(115deg,var(--holo-1) 0%,var(--holo-2) 35%,var(--holo-3) 70%,var(--holo-1) 100%);
+  --kk-foil:linear-gradient(180deg,var(--gold-bright),var(--gold));
+  --kk-grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E")}
+.kk-root,body{font-family:var(--font-sans);color:var(--ink);-webkit-font-smoothing:antialiased}
+body{margin:0;padding:16px;min-height:100vh;box-sizing:border-box;background-color:var(--page-deep);background-attachment:fixed;background-image:
+  radial-gradient(34px 22px at 9% 11%,var(--cloud) 97%,transparent 100%),radial-gradient(26px 20px at 6.5% 12.5%,var(--cloud) 97%,transparent 100%),radial-gradient(30px 18px at 11.5% 13%,var(--cloud) 97%,transparent 100%),radial-gradient(60px 12px at 9% 14.5%,var(--cloud) 97%,transparent 100%),
+  radial-gradient(44px 26px at 78% 7%,var(--cloud) 97%,transparent 100%),radial-gradient(30px 22px at 74.5% 8.5%,var(--cloud) 97%,transparent 100%),radial-gradient(34px 20px at 81.5% 9%,var(--cloud) 97%,transparent 100%),radial-gradient(76px 14px at 78% 10.5%,var(--cloud) 97%,transparent 100%),
+  radial-gradient(22px 14px at 52% 22%,var(--cloud) 97%,transparent 100%),radial-gradient(40px 9px at 52% 23.5%,var(--cloud) 97%,transparent 100%),
+  linear-gradient(180deg,var(--page) 0%,var(--page-deep) 100%)}
+.kk-page-title{margin:0;font-family:var(--font-display);font-weight:800;font-size:34px;line-height:1.05;letter-spacing:-.6px;color:var(--sun);-webkit-text-stroke:6px var(--page-ink);paint-order:stroke fill;text-shadow:0 4px 0 var(--page-ink)}
+.kk-page-title small{display:block;margin-top:6px;font-family:var(--font-mono);font-size:11.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--on-page);-webkit-text-stroke:0;text-shadow:none}
+.kk-grain{position:relative;isolation:isolate}
+.kk-grain::before,body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;background:repeating-conic-gradient(from -90deg at 50% -8%,var(--page-ray) 0deg 6deg,transparent 6deg 15deg);-webkit-mask:linear-gradient(180deg,#000 0%,transparent 75%);mask:linear-gradient(180deg,#000 0%,transparent 75%)}
+body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:24vh;min-height:130px;pointer-events:none;z-index:-1;background:
+  radial-gradient(38% 62% at 14% 100%,var(--hill-near) 97%,transparent 99%),
+  radial-gradient(34% 55% at 86% 100%,var(--hill-near) 97%,transparent 99%),
+  radial-gradient(46% 80% at 50% 104%,var(--hill-mid) 97%,transparent 99%),
+  radial-gradient(30% 78% at 0% 100%,var(--hill-mid) 97%,transparent 99%),
+  radial-gradient(34% 96% at 100% 100%,var(--hill-far) 97%,transparent 99%),
+  radial-gradient(40% 100% at 30% 100%,var(--hill-far) 97%,transparent 99%),
+  radial-gradient(36% 88% at 70% 100%,var(--hill-far) 97%,transparent 99%)}
+.kk-holo{background:var(--kk-holo)}
+@keyframes kk-holoshift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes kk-shine{0%,70%{transform:translateX(-120%) skewX(-20deg)}100%{transform:translateX(220%) skewX(-20deg)}}
+@keyframes kk-twinkle{0%,100%{opacity:.2;transform:scale(.6) rotate(0)}50%{opacity:1;transform:scale(1) rotate(45deg)}}
+@keyframes kk-stamp{0%{opacity:0;transform:rotate(-8deg) scale(1.8)}60%{opacity:1;transform:rotate(-8deg) scale(.92)}100%{transform:rotate(-8deg) scale(1)}}
+@keyframes kk-pop{0%{opacity:0;transform:translateY(14px) scale(.94)}100%{opacity:1;transform:none}}
+@keyframes kk-float{0%,100%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-5px) rotate(var(--r,0deg))}}
+@keyframes kk-fade{from{opacity:0}to{opacity:1}}
+
+/* Focus: 2px gold ring + soft glow, everywhere */
+.kk-btn:focus-visible,.kk-card:focus-visible,.kk-tab:focus-visible,.kk-seg button:focus-visible,.kk-nav-item:focus-visible,.kk-pick:focus-visible,.kk-modal-close:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* Button — tactile: glossy top, press edge underneath, sinks when pressed */
+.kk-btn{position:relative;border:none;border-radius:var(--radius-12);padding:12px 20px 11px;font-family:var(--font-display);font-weight:700;font-size:15px;line-height:1.1;letter-spacing:-.1px;cursor:pointer;transition:transform .18s var(--kk-spring),box-shadow .18s var(--kk-ease),filter .15s}
+.kk-btn:hover{transform:translateY(-1px)}
+.kk-btn:active{transform:translateY(2px)}
+.kk-btn-primary{background:linear-gradient(180deg,var(--red),var(--red-deep));color:var(--on-red);box-shadow:inset 0 1px 0 var(--sheen),var(--shadow-press-red);text-shadow:0 1px 0 var(--red-edge);overflow:hidden}
+.kk-btn-primary::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--sheen),transparent);width:40%;transform:translateX(-120%) skewX(-20deg);pointer-events:none}
+.kk-btn-primary:hover::after{animation:kk-shine .9s var(--kk-ease)}
+.kk-btn-primary:hover{filter:brightness(1.06)}
+.kk-btn-primary:active{box-shadow:inset 0 1px 0 var(--sheen),0 1px 0 var(--red-edge)}
+.kk-btn-ghost{background:var(--paper);border:1.5px solid var(--line);color:var(--ink);box-shadow:0 2px 0 var(--line)}
+.kk-btn-ghost:hover{border-color:var(--card-frame)}
+.kk-btn-ghost:active{box-shadow:0 0 0 var(--line)}
+.kk-btn-danger{background:transparent;color:var(--red);border:1.5px dashed var(--red-bg)}
+.kk-btn-danger:hover{background:var(--red-bg);border-style:solid}
+.kk-btn-block{flex:1;width:100%}
+
+/* Chip — number/count/value in the catalogue mono; rarity with a tier glyph */
+.kk-chip{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-sans);font-size:11px;line-height:1.3;padding:3px 8px;border-radius:var(--radius-pill);font-weight:800;white-space:nowrap;position:relative;overflow:hidden}
+.kk-chip-num,.kk-chip-count,.kk-chip-value{font-family:var(--font-mono);font-weight:700;letter-spacing:-.2px}
+.kk-chip-num{background:var(--line);color:var(--ink-soft)}
+.kk-chip-count{background:var(--blue-bg);color:var(--blue)}
+.kk-chip-value{background:var(--red-bg);color:var(--red)}
+.kk-chip-common{background:var(--line);color:var(--ink-soft)}
+.kk-chip-rare{background:var(--blue-bg);color:var(--blue)}
+.kk-chip-epic{background:var(--gold-bg);color:var(--gold);box-shadow:inset 0 0 0 1px var(--card-frame)}
+.kk-chip-mythic{background:var(--kk-holo);background-size:250% 250%;animation:kk-holoshift 6s ease infinite;color:var(--on-gold);box-shadow:inset 0 0 0 1px var(--sheen)}
+.kk-chip-mythic::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,var(--sheen),transparent);animation:kk-shine 3.2s var(--kk-ease) infinite}
+.kk-chip-common::before{content:"●";font-size:7px}
+.kk-chip-rare::before{content:"◆";font-size:8px}
+.kk-chip-epic::before{content:"★";font-size:9px}
+.kk-chip-mythic::before{content:"✦";font-size:10px}
+
+/* CardTile — a real trading card: framed, art inset, tilts toward the pointer with a foil sheen */
+.kk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:22px}
+.kk-card{--rx:0deg;--ry:0deg;--mx:50%;--my:50%;position:relative;background:var(--paper);border:2px solid var(--card-frame);border-radius:var(--radius-16);padding:7px 7px 0;cursor:pointer;box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--line),var(--shadow-card);display:flex;flex-direction:column;text-align:left;font:inherit;color:inherit;transform-style:preserve-3d;transform-origin:50% 50%;transform:perspective(1000px) translateY(0) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .6s var(--kk-ease),box-shadow .3s var(--kk-ease)}
+.kk-card:hover{transform:perspective(1000px) translateY(-4px) rotateX(var(--rx)) rotateY(var(--ry));box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--line),var(--shadow-lift),0 0 0 2px var(--gold);transition:transform .45s var(--kk-ease),box-shadow .3s var(--kk-ease)}
+.kk-card-art{position:relative;border-radius:var(--radius-10);overflow:hidden;box-shadow:inset 0 0 0 1px var(--card-frame)}
+.kk-card img,.kk-art{width:100%;aspect-ratio:5/7;object-fit:cover;display:block;background:var(--line);background-image:repeating-linear-gradient(135deg,transparent 0 10px,var(--grain) 10px 11px)}
+.kk-card-art::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:soft-light;background:linear-gradient(115deg,transparent 20%,var(--holo-1) 36%,var(--holo-2) 48%,var(--holo-3) 60%,transparent 76%);background-size:250% 250%;background-position:var(--mx) var(--my);transition:opacity .3s}
+.kk-card:hover .kk-card-art::after{opacity:var(--kk-holo-max,.35)}
+.kk-card-art::before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0;mix-blend-mode:screen;background:radial-gradient(circle at var(--mx) var(--my),rgba(255,255,255,.28),transparent 40%);transition:opacity .3s}
+.kk-card-art::before{display:none}
+.kk-card-foil .kk-card-art::after{opacity:calc(var(--kk-holo-max,.8) * .45)}
+.kk-card-info{padding:10px 3px 10px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.kk-card-name{font-family:var(--font-display);font-weight:700;font-size:15px;line-height:1.2;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kk-card-rar{height:21px;display:flex;min-width:0}
+.kk-card-rar .kk-chip{max-width:100%}
+.kk-chip>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.kk-card-facts{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:0 12px;padding-top:7px;border-top:1.5px dashed var(--line)}
+.kk-fact{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kk-fact:last-child{text-align:right}
+.kk-fact i{font-style:normal;font-family:var(--font-mono);font-size:8.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-soft)}
+.kk-fact b{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:-.3px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kk-fact b.kk-none{color:var(--ink-soft);font-weight:400}
+.kk-fact-value b{color:var(--red)}
+.kk-badges{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.kk-owned{position:absolute;top:14px;right:10px;z-index:2;font-family:var(--font-mono);font-size:10px;line-height:1;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--red);background:var(--paper);padding:5px 7px 4px;border:1.5px solid var(--red);border-radius:var(--radius-6);box-shadow:inset 0 0 0 2px var(--paper),inset 0 0 0 3px var(--red-deep),var(--shadow-sm);transform:rotate(-8deg);animation:kk-stamp .5s var(--kk-spring) both}
+
+/* Stat — a ticket stub with notched sides */
+.kk-stats{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kk-stat{position:relative;background:var(--bg);border-radius:var(--radius-12);padding:10px 18px 9px;min-width:92px;text-align:center;box-shadow:var(--shadow-inset);
+  -webkit-mask:radial-gradient(circle 6px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 6px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat;
+  mask:radial-gradient(circle 6px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 6px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat}
+.kk-stat b{display:block;font-family:var(--font-display);font-size:26px;line-height:1;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.kk-stat span{display:block;margin-top:5px;padding-top:5px;border-top:1.5px dashed var(--line);font-family:var(--font-mono);font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
+
+/* SegmentedToggle — coins in a tray */
+.kk-seg{display:inline-flex;gap:3px;padding:3px;background:var(--bg);border-radius:var(--radius-12);box-shadow:var(--shadow-inset)}
+.kk-seg button{border:none;background:transparent;color:var(--ink-soft);padding:8px 13px;border-radius:var(--radius-10);font-weight:800;cursor:pointer;font-size:14px;font-family:var(--font-display);transition:transform .2s var(--kk-spring),background .2s}
+.kk-seg button:hover{color:var(--ink)}
+.kk-seg button[aria-pressed=true]{background:var(--kk-foil);color:var(--on-gold);box-shadow:inset 0 1px 0 var(--sheen),var(--shadow-press-gold);transform:translateY(-1px)}
+
+/* Tabs */
+.kk-tabs{display:flex;gap:4px;background:var(--paper);border:1.5px solid var(--line);border-radius:var(--radius-16);padding:5px;width:fit-content;box-shadow:var(--shadow-raised)}
+.kk-tab{border:none;background:transparent;color:var(--ink-soft);padding:10px 18px 9px;border-radius:var(--radius-12);font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font-display);transition:transform .2s var(--kk-spring),color .15s}
+.kk-tab:hover{color:var(--ink);background:var(--bg)}
+.kk-tab[aria-selected=true]{background:var(--kk-foil);color:var(--on-gold);box-shadow:inset 0 1px 0 var(--sheen),var(--shadow-press-gold);transform:translateY(-1px)}
+
+/* Sidebar + NavItem */
+.kk-sidebar{background:var(--paper);border:1.5px solid var(--line);border-radius:var(--radius-18);padding:14px 10px;box-shadow:var(--shadow-raised);max-width:240px}
+.kk-nav-group{font-family:var(--font-mono);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-soft);padding:14px 12px 6px;display:flex;align-items:center;gap:8px}
+.kk-nav-group::after{content:"";flex:1;border-top:1.5px dotted var(--line)}
+.kk-nav-group:first-child{padding-top:2px}
+.kk-nav-item{display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;color:var(--ink);padding:10px 12px;border-radius:var(--radius-12);cursor:pointer;text-align:left;font-family:var(--font-display);font-weight:600;font-size:15px;line-height:1.15;transition:transform .2s var(--kk-spring),background .15s}
+.kk-nav-item:hover{background:var(--bg);transform:translateX(3px)}
+.kk-nav-item[aria-current=page]{background:var(--kk-foil);color:var(--on-gold);font-weight:700;box-shadow:inset 0 1px 0 var(--sheen),var(--shadow-press-gold);transform:none}
+.kk-nav-ico{width:22px;height:22px;flex:none;border-radius:var(--radius-6);background:var(--kk-holo);background-size:220% 220%;box-shadow:inset 0 0 0 1.5px var(--sheen),0 1px 2px var(--shadow-tint);transform:rotate(-8deg);transition:transform .3s var(--kk-spring)}
+.kk-nav-item:hover .kk-nav-ico{transform:rotate(6deg) scale(1.1);animation:kk-holoshift 2s ease infinite}
+.kk-nav-lbl{flex:1;min-width:0}
+.kk-nav-cnt{font-family:var(--font-mono);font-size:10.5px;font-weight:700;color:var(--ink-soft);background:var(--bg);border-radius:var(--radius-pill);padding:3px 8px;white-space:nowrap}
+.kk-nav-item[aria-current=page] .kk-nav-cnt{background:var(--sheen);color:var(--on-gold)}
+
+/* Inputs */
+.kk-input{width:100%;box-sizing:border-box;padding:12px 15px;border-radius:var(--radius-12);border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font-size:15px;font-weight:500;font-family:var(--font-sans);box-shadow:var(--shadow-inset);transition:border-color .15s,box-shadow .15s}
+.kk-input::placeholder{color:var(--ink-soft);opacity:.85}
+.kk-input-on-bg{background:var(--paper)}
+.kk-input:focus,.kk-field input:focus,.kk-select select:focus{outline:none;border-color:var(--gold);box-shadow:var(--shadow-inset),var(--shadow-glow)}
+.kk-field{display:flex;flex-direction:column;gap:5px}
+.kk-field label{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
+.kk-field input{width:96px;box-sizing:border-box;padding:9px 11px;border-radius:var(--radius-10);border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font-family:var(--font-mono);font-size:14px;font-weight:700;box-shadow:var(--shadow-inset)}
+.kk-field.kk-full input{width:100%}
+.kk-select{display:flex;align-items:center;gap:10px}
+.kk-select label{font-family:var(--font-mono);font-size:10.5px;color:var(--on-page);text-transform:uppercase;letter-spacing:.8px;font-weight:700}
+.kk-select select{appearance:none;-webkit-appearance:none;padding:9px 34px 9px 12px;border-radius:var(--radius-10);border:1.5px solid var(--line);background:var(--paper) no-repeat right 12px center/10px 6px;background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),linear-gradient(-45deg,transparent 50%,var(--gold) 50%);background-size:5px 5px,5px 5px;background-position:right 17px center,right 12px center;color:var(--ink);font-family:var(--font-sans);font-weight:600;font-size:14px;cursor:pointer}
+
+/* AddPanel */
+.kk-panel{position:relative;border:3px solid transparent;border-radius:var(--radius-18);padding:16px;background:linear-gradient(var(--paper),var(--paper)) padding-box,var(--kk-holo) border-box;background-size:auto,300% 300%;animation:kk-holoshift 14s ease infinite;box-shadow:var(--shadow-raised)}
+.kk-panel-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.kk-hint{font-size:12.5px;color:var(--ink-soft);margin-top:12px;line-height:1.45}
+
+/* EmptyState — three empty card slots, gently floating */
+.kk-empty{background:var(--paper);border:2px dashed var(--line);border-radius:var(--radius-18);padding:30px 22px 32px;text-align:center;color:var(--ink-soft);font-size:14.5px;line-height:1.5}
+.kk-empty-slots{display:flex;justify-content:center;margin-bottom:16px;height:74px}
+.kk-empty-slots i{width:50px;height:70px;border-radius:var(--radius-8);border:2px dashed var(--card-frame);background:var(--bg);margin:0 -6px;animation:kk-float 3.2s ease-in-out infinite}
+.kk-empty-slots i:nth-child(1){--r:-12deg;animation-delay:-.4s}
+.kk-empty-slots i:nth-child(2){--r:0deg;border-style:solid;background:var(--kk-holo);opacity:.9;z-index:1;position:relative}
+.kk-empty-slots i:nth-child(3){--r:12deg;animation-delay:-1.2s}
+.kk-empty b{color:var(--ink);display:block;font-family:var(--font-display);font-size:22px;font-weight:700;letter-spacing:-.3px;margin-bottom:6px}
+
+/* PickItem */
+.kk-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:12px}
+.kk-pick{cursor:pointer;border:1.5px solid var(--line);border-radius:var(--radius-12);padding:6px 6px 7px;background:var(--bg);text-align:center;transition:transform .25s var(--kk-spring),border-color .15s,box-shadow .2s;font:inherit;color:inherit}
+.kk-pick:hover{transform:translateY(-4px) rotate(-2deg);border-color:var(--gold);box-shadow:var(--shadow-card)}
+.kk-pick img{width:100%;border-radius:var(--radius-8);aspect-ratio:5/7;object-fit:cover;background:var(--line);display:block}
+.kk-pick span{display:block;font-family:var(--font-mono);font-size:10px;font-weight:700;color:var(--ink-soft);margin-top:6px;letter-spacing:.2px}
+
+/* CardModal */
+.kk-scrim{position:fixed;inset:0;background:var(--overlay);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;animation:kk-fade .2s ease both}
+.kk-scrim.kk-inline{position:relative;inset:auto;min-height:100%}
+.kk-modal{background:var(--paper);border-radius:var(--radius-20);max-width:460px;width:100%;max-height:88vh;overflow:auto;padding:24px;position:relative;border:2px solid var(--card-frame);box-shadow:inset 0 0 0 4px var(--paper),inset 0 0 0 5px var(--line),var(--shadow-lift);animation:kk-pop .45s var(--kk-spring) both}
+.kk-modal-art{--rx:0deg;--ry:0deg;--mx:50%;--my:50%;width:190px;margin:0 auto 16px;position:relative;border-radius:var(--radius-12);overflow:hidden;border:2px solid var(--card-frame);box-shadow:var(--shadow-lift);transform:perspective(900px) rotateX(var(--rx)) rotateY(var(--ry));transition:transform .6s var(--kk-ease)}
+.kk-modal-art:hover{transition:transform .45s var(--kk-ease)}
+.kk-modal-art img{width:100%;display:block;aspect-ratio:5/7;object-fit:cover;background:var(--line)}
+.kk-modal-art::after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;opacity:var(--kk-holo-max,.55);background:linear-gradient(115deg,transparent 20%,var(--holo-1) 36%,var(--holo-2) 48%,var(--holo-3) 60%,transparent 76%);background-size:250% 250%;background-position:var(--mx) var(--my)}
+.kk-modal h2{margin:0 0 4px;text-align:center;font-size:26px;line-height:1.1;letter-spacing:-.4px;font-family:var(--font-display);font-weight:800}
+.kk-modal-sub{text-align:center;color:var(--ink-soft);font-family:var(--font-mono);font-size:11px;letter-spacing:.8px;text-transform:uppercase;margin-bottom:16px;font-weight:700}
+.kk-modal-close{position:absolute;top:14px;right:14px;width:34px;height:34px;display:grid;place-items:center;background:var(--bg);border:1.5px solid var(--line);border-radius:50%;font-size:20px;cursor:pointer;color:var(--ink-soft);line-height:1;transition:transform .25s var(--kk-spring),color .15s}
+.kk-modal-close:hover{transform:rotate(90deg);color:var(--ink)}
+.kk-fieldgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;padding-top:16px;border-top:1.5px dashed var(--line)}
+.kk-fieldgrid .kk-full{grid-column:1/-1}
+.kk-fieldgrid .kk-field input{width:100%}
+.kk-modal-actions{display:flex;gap:10px;margin-top:20px}
+.kk-modal-actions .kk-btn{flex:1}
+
+/* HeroBand — holo foil with diagonal ribs and twinkles; wordmark in gold foil beside the vault mark */
+.kk-hero{position:relative;overflow:hidden;padding:22px 16px 28px;background:var(--kk-holo);background-size:300% 300%;animation:kk-holoshift 14s ease infinite;border-radius:0 0 var(--radius-22) var(--radius-22);box-shadow:var(--shadow-band)}
+.kk-hero::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 22px,var(--sheen) 22px 24px,transparent 24px 46px);opacity:.35;pointer-events:none}
+.kk-hero-spark{position:absolute;color:var(--paper);font-size:14px;line-height:1;pointer-events:none;animation:kk-twinkle 2.8s ease-in-out infinite}
+.kk-hero-inner{position:relative;max-width:1200px;margin:0 auto;background:var(--paper);border-radius:var(--radius-18);padding:16px 20px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
+.kk-brand{display:flex;align-items:center;gap:12px}
+.kk-mark{width:38px;height:46px;flex:none;filter:drop-shadow(0 2px 3px var(--shadow-tint));transform:rotate(-6deg);transition:transform .4s var(--kk-spring)}
+.kk-brand:hover .kk-mark{transform:rotate(4deg) scale(1.06)}
+.kk-mark .m-card{fill:url(#kk-mark-foil)}
+.kk-mark .m-hole{fill:var(--ink)}
+.kk-mark .m-ring{fill:none;stroke:var(--sheen);stroke-width:1.5}
+.kk-hero h1{margin:0;font-family:var(--font-display);font-weight:800;font-size:34px;line-height:1;letter-spacing:-.8px;background:linear-gradient(180deg,var(--gold-bright) 10%,var(--gold) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.kk-hero-sub{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:5px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+@media (max-width:480px){.kk-hero h1{font-size:26px}.kk-hero-inner{padding:14px}.kk-modal-art{width:150px}}
+.kk-hint:empty{display:none}
+@media (prefers-reduced-motion: reduce){.kk-panel,.kk-hero,.kk-chip-mythic,.kk-chip-mythic::after,.kk-hero-spark,.kk-empty-slots i,.kk-owned,.kk-modal,.kk-scrim{animation:none}.kk-card,.kk-modal-art{transform:none!important}}
+.kk-mark .s1{stop-color:var(--gold-bright)}.kk-mark .s2{stop-color:var(--gold)}
+.kk-chip>span{display:block;white-space:nowrap}
+.kk-surface{background:var(--paper);border-radius:var(--radius-18);padding:16px;box-shadow:var(--shadow-raised);width:fit-content;max-width:100%;box-sizing:border-box}
+
+/* Type colours — every card wears its type: frame + label */
+.kk-type-fire{--kk-type:var(--type-fire);--kk-on-type:var(--on-type-dark)}.kk-type-water{--kk-type:var(--type-water);--kk-on-type:var(--on-type-dark)}.kk-type-grass{--kk-type:var(--type-grass);--kk-on-type:var(--on-type-dark)}.kk-type-lightning{--kk-type:var(--type-lightning);--kk-on-type:var(--on-type-dark)}.kk-type-psychic{--kk-type:var(--type-psychic);--kk-on-type:var(--on-type-light)}.kk-type-fighting{--kk-type:var(--type-fighting);--kk-on-type:var(--on-type-light)}.kk-type-darkness{--kk-type:var(--type-darkness);--kk-on-type:var(--on-type-light)}.kk-type-metal{--kk-type:var(--type-metal);--kk-on-type:var(--on-type-dark)}.kk-type-dragon{--kk-type:var(--type-dragon);--kk-on-type:var(--on-type-dark)}.kk-type-colorless{--kk-type:var(--type-colorless);--kk-on-type:var(--on-type-dark)}.kk-type-fairy{--kk-type:var(--type-fairy);--kk-on-type:var(--on-type-dark)}.kk-type-trainer{--kk-type:var(--type-trainer);--kk-on-type:var(--on-type-light)}
+.kk-card[class*="kk-type-"]{border-color:var(--kk-type);border-width:3px;box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px color-mix(in srgb,var(--kk-type) 45%,transparent),var(--shadow-card)}
+.kk-card[class*="kk-type-"]:hover{box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px color-mix(in srgb,var(--kk-type) 45%,transparent),var(--shadow-lift),0 0 0 2px var(--kk-type)}
+.kk-card[class*="kk-type-"] .kk-card-art{box-shadow:inset 0 0 0 1px var(--kk-type)}
+.kk-type-tag{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 4px;border-radius:var(--radius-pill);background:var(--kk-type);color:var(--kk-on-type);font-family:var(--font-sans);font-size:10px;font-weight:800;letter-spacing:.2px;line-height:1.2;box-shadow:0 1px 0 rgba(0,0,0,.18),inset 0 1px 0 var(--sheen)}
+.kk-type-tag::before{content:"";width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0 18%,transparent 22%),var(--kk-type);box-shadow:0 0 0 1.5px var(--kk-on-type)}
+/* Missing cards (set view): greyed placeholder in the set's order */
+.kk-card-missing{border-style:dashed;cursor:pointer;box-shadow:none;background:color-mix(in srgb,var(--paper) 70%,transparent)}
+.kk-card-missing .kk-card-art img,.kk-card-missing .kk-card-art .kk-art{filter:grayscale(1);opacity:.4}
+.kk-card-missing .kk-card-name,.kk-card-missing .kk-card-facts,.kk-card-missing .kk-card-rar{opacity:.55}
+.kk-card-missing .kk-type-tag{filter:grayscale(.6);opacity:.7}
+.kk-card-missing,.kk-card-missing:hover{transform:none;transition:border-color .2s,background .2s}
+.kk-card.kk-card-missing:hover{transform:none;box-shadow:0 0 0 2px var(--gold)}
+.kk-card-missing .kk-card-art::after,.kk-card-missing .kk-card-art::before{display:none}
+.kk-missing-tag{position:absolute;top:50%;left:50%;transform:translate(-50%,-80%) rotate(-8deg);z-index:2;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-soft);background:var(--paper);border:1.5px dashed var(--ink-soft);border-radius:var(--radius-6);padding:5px 8px 4px;white-space:nowrap}
+/* SetProgress */
+.kk-progress{background:var(--paper);border-radius:var(--radius-18);padding:14px 18px 16px;box-shadow:var(--shadow-raised);display:grid;grid-template-columns:1fr auto;gap:8px 16px;align-items:end}
+.kk-progress-name{font-family:var(--font-display);font-weight:800;font-size:18px;letter-spacing:-.3px;line-height:1.1;color:var(--ink)}
+.kk-progress-name small{display:block;margin-top:3px;font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-soft)}
+.kk-progress-count{font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--ink);text-align:right;white-space:nowrap}
+.kk-progress-count b{font-family:var(--font-display);font-size:26px;font-weight:800;letter-spacing:-.5px;margin-right:2px}
+.kk-progress-track{grid-column:1/-1;position:relative;height:14px;border-radius:var(--radius-pill);background:var(--bg);box-shadow:var(--shadow-inset);overflow:hidden}
+.kk-progress-fill{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:linear-gradient(180deg,var(--sun),var(--gold-bright));box-shadow:inset 0 2px 0 var(--sheen),inset 0 -2px 0 var(--gold-edge);transition:width .8s var(--kk-spring)}
+.kk-progress-fill::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 10px,var(--sheen) 10px 14px);opacity:.5}
+.kk-progress-done .kk-progress-fill{background:var(--kk-holo);background-size:250% 250%;animation:kk-holoshift 6s ease infinite}
+@media (prefers-reduced-motion: reduce){.kk-progress-done .kk-progress-fill{animation:none}}
+.kk-grid{grid-template-columns:repeat(auto-fill,minmax(min(160px,100%),1fr))}
+.kk-grid>*{min-width:0}
+
+/* NavItem with set progress: a mini version of SetProgress under the set name */
+.kk-nav-prog{align-items:flex-start}
+.kk-nav-prog .kk-nav-ico{margin-top:1px}
+.kk-nav-lbl{display:flex;flex-direction:column;gap:6px}
+.kk-nav-bar{display:block;position:relative;height:7px;border-radius:var(--radius-pill);background:var(--bg);box-shadow:var(--shadow-inset);overflow:hidden}
+.kk-nav-bar i{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:linear-gradient(180deg,var(--sun),var(--gold-bright));box-shadow:inset 0 -1px 0 var(--gold-edge);transition:width .8s var(--kk-spring)}
+.kk-nav-done .kk-nav-bar i{background:var(--kk-holo);background-size:250% 250%;animation:kk-holoshift 6s ease infinite}
+.kk-nav-item[aria-current=page] .kk-nav-bar{background:rgba(0,0,0,.18);box-shadow:none}
+.kk-nav-item[aria-current=page] .kk-nav-bar i{background:var(--paper);box-shadow:none}
+.kk-nav-prog .kk-nav-cnt{margin-top:-1px}
+@media (prefers-reduced-motion: reduce){.kk-nav-done .kk-nav-bar i{animation:none}}
+
+.kk-card-foil:hover .kk-card-art::after{opacity:var(--kk-holo-max,.8)}
+
+/* Rarity ladder chips: C · U · R · RR · IR · SIR · UR/HR · FUR */
+.kk-chip[class*="kk-chip-tier-"]{font-family:var(--font-mono);font-weight:700;letter-spacing:.3px}
+.kk-chip-tier-c{background:var(--line);color:var(--ink-soft)}
+.kk-chip-tier-u{background:var(--bg);color:var(--ink-soft);box-shadow:inset 0 0 0 1px var(--card-frame)}
+.kk-chip-tier-r{background:var(--blue-bg);color:var(--blue)}
+.kk-chip-tier-rr{background:var(--blue-bg);color:var(--blue);box-shadow:inset 0 0 0 1.5px var(--blue)}
+.kk-chip-tier-ir{background:var(--gold-bg);color:var(--gold);box-shadow:inset 0 0 0 1px var(--card-frame)}
+.kk-chip-tier-sir{background:var(--kk-holo);background-size:250% 250%;animation:kk-holoshift 6s ease infinite;color:var(--on-gold);box-shadow:inset 0 0 0 1px var(--sheen)}
+.kk-chip-tier-ur{background:linear-gradient(180deg,var(--sun),var(--gold-bright));color:var(--on-gold);box-shadow:inset 0 1px 0 var(--sheen),inset 0 0 0 1px var(--gold-edge)}
+.kk-chip-tier-fur{background:linear-gradient(115deg,var(--fur-1),var(--fur-2) 35%,var(--fur-3) 70%,var(--fur-1));background-size:250% 250%;animation:kk-holoshift 4s ease infinite;color:var(--on-gold);box-shadow:inset 0 0 0 1px var(--sheen)}
+.kk-chip-tier-sir::after,.kk-chip-tier-ur::after,.kk-chip-tier-fur::after{content:"";position:absolute;top:0;bottom:0;left:0;width:40%;background:linear-gradient(90deg,transparent,var(--sheen),transparent);animation:kk-shine 3.2s var(--kk-ease) infinite}
+.kk-chip-tier-fur::after{animation-duration:2.4s}
+/* Holo band colour per tier: rainbow by default, gold for UR/HR, opalescent neon for FUR */
+.kk-holo-gold .kk-card-art::after,.kk-modal-art.kk-holo-gold::after{background-image:linear-gradient(115deg,transparent 18%,var(--gold-bright) 36%,var(--sun) 50%,var(--gold-bright) 64%,transparent 80%)}
+.kk-holo-neon .kk-card-art::after,.kk-modal-art.kk-holo-neon::after{background-image:linear-gradient(115deg,transparent 12%,var(--fur-1) 30%,var(--fur-2) 46%,var(--fur-3) 62%,var(--fur-1) 76%,transparent 90%)}
+@media (prefers-reduced-motion: reduce){.kk-chip-tier-sir,.kk-chip-tier-fur,.kk-chip-tier-sir::after,.kk-chip-tier-ur::after,.kk-chip-tier-fur::after{animation:none}}
+
+/* Titles in Titan One: the wordmark and page titles */
+.kk-hero h1{font-family:var(--font-title);font-weight:400;letter-spacing:.2px}
+.kk-page-title{font-family:var(--font-title);font-weight:400;letter-spacing:.3px}
