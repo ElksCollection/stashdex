@@ -50,6 +50,8 @@ jobs:
             echo "Geen wijzigingen in de data."
           else
             git commit -m "Kaartdata bijgewerkt ($(date -u +%Y-%m-%d))"
+            # Eerst eventuele nieuwere code ophalen, zodat opslaan nooit botst
+            git pull --rebase
             git push
           fi
 
