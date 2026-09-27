@@ -24,7 +24,7 @@ body{padding:0}
 /* ---------- App-indeling: header, menubalk, setpaneel, hoofdvlak ---------- */
 .app{height:100vh;display:flex;flex-direction:column;gap:18px;box-sizing:border-box}
 /* Slanke holo-header: waaier · merk · waaier, valuta rechts */
-.slimbar{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:0 16px;padding:10px 24px;border-radius:0 0 22px 22px;overflow:visible;min-height:72px;box-sizing:border-box}
+.slimbar{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:0 16px;padding:6px 24px;border-radius:0 0 22px 22px;overflow:visible;min-height:84px;box-sizing:border-box;z-index:5}
 .slimbar::before{border-radius:0 0 22px 22px}
 .slim-brand{position:relative;z-index:1;display:flex;align-items:center;gap:12px;background:var(--paper);border-radius:16px;padding:8px 22px 9px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line)}
 .slim-title{margin:0;font-family:var(--font-title);font-weight:400;font-size:30px;line-height:1;letter-spacing:.3px;background:linear-gradient(180deg,var(--gold-bright) 10%,var(--gold) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -32,17 +32,19 @@ body{padding:0}
 .slim-cur{position:absolute;right:24px;top:50%;transform:translateY(-50%);z-index:2}
 
 /* Kaartwaaier: je 6 waardevolste kaarten, 3 links en 3 rechts */
-.fan{position:relative;z-index:1;display:flex;align-items:center;height:56px}
+.fan{position:relative;z-index:1;display:flex;align-items:center;height:72px}
 .fan-left{justify-content:flex-end;padding-right:18px}
 .fan-right{justify-content:flex-start;padding-left:18px;margin-right:120px}
-.fan-card{width:44px;aspect-ratio:5/7;padding:2px;border:2.5px solid var(--kk-type,var(--card-frame));border-radius:7px;background:var(--paper);box-shadow:0 6px 12px -4px rgba(11,36,71,.45);cursor:pointer;margin:0 -8px;transition:transform .3s var(--kk-spring),z-index 0s;position:relative;box-sizing:border-box}
-.fan-card img{width:100%;height:100%;object-fit:cover;border-radius:4px;display:block}
-.fan-card.f0{transform:rotate(-14deg) translateY(6px)}
-.fan-card.f1{transform:rotate(-3deg) translateY(-2px);z-index:1}
-.fan-card.f2{transform:rotate(10deg) translateY(4px)}
-.fan-right .fan-card.f0{transform:rotate(-10deg) translateY(4px)}
-.fan-right .fan-card.f2{transform:rotate(14deg) translateY(6px)}
-.fan-card:hover{transform:translateY(-10px) rotate(0) scale(1.15)!important;z-index:3}
+.fan-card{width:60px;aspect-ratio:5/7;padding:2px;border:3px solid var(--kk-type,var(--card-frame));border-radius:8px;background:var(--paper);box-shadow:0 6px 12px -4px rgba(11,36,71,.45);cursor:pointer;margin:0 -3px;transform-origin:50% 25%;transition:transform .3s var(--kk-spring),box-shadow .3s,z-index 0s;position:relative;box-sizing:border-box}
+.fan-card img{width:100%;height:100%;object-fit:cover;border-radius:5px;display:block}
+.fan-card.f0{transform:rotate(-12deg) translateY(8px)}
+.fan-card.f1{transform:rotate(-2deg) translateY(4px);z-index:1}
+.fan-card.f2{transform:rotate(9deg) translateY(7px)}
+.fan-right .fan-card.f0{transform:rotate(-9deg) translateY(7px)}
+.fan-right .fan-card.f2{transform:rotate(12deg) translateY(8px)}
+.fan-card:hover{transform:translateY(4px) rotate(0) scale(1.35)!important;z-index:3;box-shadow:0 14px 24px -8px rgba(11,36,71,.55)}
+/* Middelgrote schermen: iets kleinere waaier */
+@media (max-width: 1100px){.fan-card{width:48px;margin:0 -8px}.fan{height:64px}}
 .fan-card:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 
 /* Logo */
