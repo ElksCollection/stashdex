@@ -40,6 +40,8 @@ const ICONS = {
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
   filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
+  collapse: '<path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/>',
+  expand: '<path d="m13 17 5-5-5-5M6 17l5-5-5-5"/>',
 };
 
 // Het Stashdex-logo: schuine kaart met holo-binnenkant, gele S en sterretje.
@@ -314,13 +316,28 @@ function buildShell() {
     oninput: (e) => { S.q = e.target.value; S.shown = PAGE; render(); } });
   ui.series = el("nav", { class: "kk-sidebar", "aria-label": "Sets" });
   const panel = el("aside", { class: "setpanel", "aria-label": "Sets" },
-    el("div", { class: "setpanel-search" }, ui.search),
+    // Ingeklapt: alleen een smalle strook om het paneel weer open te klappen
+    el("button", { type: "button", class: "panel-strip", "aria-label": "Setpaneel uitklappen", title: "Setpaneel uitklappen", onclick: () => setPanel(true) },
+      icon(ICONS.expand, 20), el("span", {}, "Sets")),
+    el("div", { class: "setpanel-search" }, ui.search,
+      el("button", { type: "button", class: "icon-btn collapse-btn", "aria-label": "Setpaneel inklappen", title: "Setpaneel inklappen", onclick: () => setPanel(false) }, icon(ICONS.collapse, 20))),
     el("div", { class: "setpanel-list scroll" }, ui.series),
     el("div", { class: "setpanel-foot" },
       el("button", { type: "button", class: "kk-btn kk-btn-ghost kk-btn-block", onclick: () => toast("Editie toevoegen komt in stap 6") }, "+ Editie toevoegen")));
 
   ui.main = el("main", { class: "main scroll" });
-  $("home").replaceChildren(hero, el("div", { class: "layout" }, rail, panel, ui.main));
+  ui.panel = panel;
+  ui.layout = el("div", { class: "layout" }, rail, panel, ui.main);
+  $("home").replaceChildren(hero, ui.layout);
+  setPanel(pref.get("panel", true), false);
+}
+
+// Setpaneel in- of uitklappen; de keuze wordt per apparaat onthouden
+function setPanel(open, focus = true) {
+  ui.panel.classList.toggle("collapsed", !open);
+  ui.layout.classList.toggle("panel-collapsed", !open);
+  pref.set("panel", open);
+  if (focus) ui.panel.querySelector(open ? ".collapse-btn" : ".panel-strip").focus();
 }
 
 function render() {

@@ -77,7 +77,20 @@ body{padding:0}
 
 /* Setpaneel */
 .setpanel{background:var(--paper);border-radius:18px;box-shadow:var(--shadow-raised);padding:16px 12px;display:flex;flex-direction:column;gap:6px;min-height:0;overflow:hidden}
-.setpanel-search{padding:0 4px 8px}
+.setpanel-search{padding:0 4px 8px;display:flex;align-items:center;gap:8px}
+.collapse-btn{width:40px;height:40px;flex:none;color:var(--ink-soft)}
+.collapse-btn:hover{color:var(--ink)}
+
+/* Ingeklapt setpaneel: een smalle strook met » en "Sets" */
+.layout{transition:grid-template-columns .35s var(--kk-ease)}
+.layout.panel-collapsed{grid-template-columns:88px 56px minmax(0,1fr)}
+.panel-strip{display:none}
+.setpanel.collapsed{padding:8px 6px}
+.setpanel.collapsed>:not(.panel-strip){display:none}
+.setpanel.collapsed .panel-strip{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;flex-grow:1;padding:10px 0;border:none;border-radius:12px;background:transparent;color:var(--ink-soft);cursor:pointer;font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.panel-strip:hover{background:var(--bg);color:var(--ink)}
+.panel-strip span{writing-mode:vertical-rl}
+.panel-strip:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
 .setpanel-list{flex-grow:1;min-height:0;overflow-y:auto;padding-right:4px}
 .setpanel-foot{padding:8px 4px 0;border-top:1.5px dashed var(--line)}
 .setpanel .kk-sidebar{max-width:none;box-shadow:none;border:none;padding:0;background:transparent}
@@ -144,7 +157,6 @@ button.lrow:hover{background:var(--bg)}
   .fan{display:none}
   .slim-cur{position:static;transform:none}
   .sethead{grid-template-columns:minmax(0,1fr)}
-  .feat-card{width:160px}
   .layout{grid-template-columns:minmax(0,1fr);padding:0 16px 24px;gap:14px}
   .rail{flex-direction:row;overflow-x:auto;padding:8px;gap:6px}
   .rail-sep{width:0;height:40px;border-top:none;border-left:1.5px dashed var(--line);margin:0 4px}
@@ -153,6 +165,11 @@ button.lrow:hover{background:var(--bg)}
   .scan-btn{width:56px;height:56px;flex:none}
   .rail-btn{flex:none}
   .setpanel{max-height:45vh}
+  /* Op telefoon klapt het paneel in tot een balkje; pijlen wijzen omhoog/omlaag */
+  .layout.panel-collapsed{grid-template-columns:minmax(0,1fr)}
+  .setpanel.collapsed .panel-strip{flex-direction:row;justify-content:center;padding:6px 0}
+  .panel-strip span{writing-mode:horizontal-tb}
+  .panel-strip svg,.collapse-btn svg{transform:rotate(90deg)}
   .main{overflow:visible;padding:0}
   .lrow{grid-template-columns:52px minmax(0,1fr) 64px 80px;gap:8px;padding:10px 8px}
   .lrow .col-type,.lrow .col-rar{display:none}
