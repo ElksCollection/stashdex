@@ -184,17 +184,15 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:24vh;min-he
 .kk-hero-spark{position:absolute;color:var(--paper);font-size:14px;line-height:1;pointer-events:none;animation:kk-twinkle 2.8s ease-in-out infinite}
 .kk-hero-inner{position:relative;max-width:1200px;margin:0 auto;background:var(--paper);border-radius:var(--radius-18);padding:16px 20px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px}
 .kk-brand{display:flex;align-items:center;gap:12px}
-.kk-mark{width:38px;height:46px;flex:none;filter:drop-shadow(0 2px 3px var(--shadow-tint));transform:rotate(-6deg);transition:transform .4s var(--kk-spring)}
-.kk-brand:hover .kk-mark{transform:rotate(4deg) scale(1.06)}
-.kk-mark .m-card{fill:url(#kk-mark-foil)}
-.kk-mark .m-hole{fill:var(--ink)}
-.kk-mark .m-ring{fill:none;stroke:var(--sheen);stroke-width:1.5}
+.kk-mark{width:48px;height:48px;flex:none;overflow:visible;filter:drop-shadow(0 2px 3px var(--shadow-tint));transition:transform .4s var(--kk-spring)}
+.kk-brand:hover .kk-mark{transform:rotate(6deg) scale(1.06)}
+.kk-mark .m-card{fill:#0b2447;stroke:#ffcb05;stroke-width:5}
+.kk-mark .m-s,.kk-mark .m-star{fill:#ffcb05;stroke:#0b2447}
 .kk-hero h1{margin:0;font-family:var(--font-display);font-weight:800;font-size:34px;line-height:1;letter-spacing:-.8px;background:linear-gradient(180deg,var(--gold-bright) 10%,var(--gold) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .kk-hero-sub{font-family:var(--font-mono);font-size:11px;color:var(--ink-soft);margin-top:5px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
 @media (max-width:480px){.kk-hero h1{font-size:26px}.kk-hero-inner{padding:14px}.kk-modal-art{width:150px}}
 .kk-hint:empty{display:none}
 @media (prefers-reduced-motion: reduce){.kk-panel,.kk-hero,.kk-chip-mythic,.kk-chip-mythic::after,.kk-hero-spark,.kk-empty-slots i,.kk-owned,.kk-modal,.kk-scrim{animation:none}.kk-card,.kk-modal-art{transform:none!important}}
-.kk-mark .s1{stop-color:var(--gold-bright)}.kk-mark .s2{stop-color:var(--gold)}
 .kk-chip>span{display:block;white-space:nowrap}
 .kk-surface{background:var(--paper);border-radius:var(--radius-18);padding:16px;box-shadow:var(--shadow-raised);width:fit-content;max-width:100%;box-sizing:border-box}
 
