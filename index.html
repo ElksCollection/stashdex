@@ -10,7 +10,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Figtree:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    /* Tijdelijke beginpagina in de Kaartenkluis-stijl: hemelsblauw met gele titel */
+    /* Tijdelijke opzet in de Kaartenkluis-stijl: hemelsblauw met gele titel */
+    :root {
+      --ink: #0b2a4a;
+      --sun: #ffd23f;
+      --red: #e3350d;
+    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -18,33 +24,136 @@
       place-items: center;
       background: radial-gradient(circle at 50% 30%, #7cc8ff, #2f8fe0 70%);
       font-family: "Figtree", system-ui, sans-serif;
-      color: #0b2a4a;
-      text-align: center;
+      color: var(--ink);
       padding: 16px;
-      box-sizing: border-box;
     }
+    main { width: 100%; max-width: 380px; text-align: center; }
     h1 {
       font-family: "Titan One", sans-serif;
       font-weight: 400;
-      font-size: clamp(3rem, 12vw, 6rem);
-      margin: 0;
-      color: #ffd23f;
-      -webkit-text-stroke: 3px #0b2a4a;
-      text-shadow: 0 6px 0 #0b2a4a;
-      letter-spacing: 1px;
+      font-size: clamp(3rem, 12vw, 5rem);
+      margin: 0 0 1.5rem;
+      color: var(--sun);
+      -webkit-text-stroke: 3px var(--ink);
+      text-shadow: 0 6px 0 var(--ink);
     }
-    p {
-      font-weight: 700;
-      font-size: 1.2rem;
+    .panel {
+      background: #fff;
+      border: 3px solid var(--ink);
+      border-radius: 18px;
+      box-shadow: 0 6px 0 var(--ink);
+      padding: 24px;
+      text-align: left;
+    }
+    label { display: block; font-weight: 700; margin: 0 0 6px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      font: inherit;
+      margin-bottom: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border: 3px solid var(--ink);
+      border-radius: 999px;
+      background: var(--red);
       color: #fff;
-      margin-top: 1.5rem;
+      font: inherit;
+      font-weight: 700;
+      font-size: 1.05rem;
+      cursor: pointer;
+      box-shadow: 0 4px 0 var(--ink);
     }
+    button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+    button:disabled { opacity: .6; cursor: wait; }
+    .error { color: var(--red); font-weight: 700; min-height: 1.4em; margin: 12px 0 0; }
+    .stats { margin: 0 0 20px; line-height: 1.7; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
     <h1>Stashdex</h1>
-    <p>Binnenkort hier.</p>
+
+    <!-- Inlogscherm: alleen dit is zichtbaar zolang je niet bent ingelogd -->
+    <form class="panel" id="login" hidden>
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="password">Wachtwoord</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button type="submit" id="loginBtn">Inloggen</button>
+      <p class="error" id="error" role="alert"></p>
+    </form>
+
+    <!-- Na inloggen: tijdelijk overzicht om te controleren dat alles werkt -->
+    <section class="panel" id="home" hidden>
+      <p class="stats" id="stats">Laden…</p>
+      <button id="logoutBtn">Uitloggen</button>
+    </section>
   </main>
+
+  <script type="module">
+    // Vaste versie, zodat er nooit ongemerkt andere code binnenkomt
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";
+
+    // Openbare verbindingsgegevens; de beveiliging zit in login + RLS in Supabase
+    const supabase = createClient(
+      "https://iffsbsywjzmcmxsjhikd.supabase.co",
+      "sb_publishable_y9pL7nfJLtZPdwTtQa5WTg_ewt3OtEj"
+    );
+
+    const $ = (id) => document.getElementById(id);
+
+    // Toont het juiste scherm op basis van wel/niet ingelogd
+    async function render(session) {
+      $("login").hidden = !!session;
+      $("home").hidden = !session;
+      if (session) await loadStats(session);
+    }
+
+    // Tijdelijke controle: telt je collectie en de geladen kaartdata
+    async function loadStats(session) {
+      const [col, sets, meta] = await Promise.all([
+        supabase.from("collection").select("*", { count: "exact", head: true }),
+        fetch("data/sets.json").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        fetch("data/meta.json").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
+      const updated = meta ? new Date(meta.updatedAt).toLocaleString("nl-NL") : "nog niet";
+      // Opgebouwd met textContent, zodat tekst nooit als code kan worden uitgevoerd
+      const rows = [
+        ["Ingelogd als", session.user.email],
+        ["Kaarten in je collectie", col.error ? "fout bij laden" : col.count],
+        ["Sets beschikbaar", sets.length],
+        ["Prijzen bijgewerkt", updated],
+      ];
+      $("stats").replaceChildren(...rows.flatMap(([label, value], i) => {
+        const b = document.createElement("b");
+        b.textContent = value;
+        return [i ? document.createElement("br") : "", `${label}: `, b];
+      }));
+    }
+
+    $("login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("error").textContent = "";
+      $("loginBtn").disabled = true;
+      const { error } = await supabase.auth.signInWithPassword({
+        email: $("email").value.trim(),
+        password: $("password").value,
+      });
+      $("loginBtn").disabled = false;
+      if (error) $("error").textContent = "Inloggen mislukt: controleer e-mail en wachtwoord.";
+    });
+
+    $("logoutBtn").addEventListener("click", () => supabase.auth.signOut());
+
+    // Reageert op inloggen/uitloggen, ook bij het openen van de pagina
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setTimeout(() => render(session), 0);
+    });
+  </script>
 </body>
 </html>
