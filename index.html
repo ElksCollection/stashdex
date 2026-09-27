@@ -15,6 +15,7 @@
       --ink: #0b2a4a;
       --sun: #ffd23f;
       --red: #e3350d;
+      --green: #1b7a3a;
     }
     * { box-sizing: border-box; }
     body {
@@ -37,6 +38,7 @@
       -webkit-text-stroke: 3px var(--ink);
       text-shadow: 0 6px 0 var(--ink);
     }
+    h2 { font-size: 1.2rem; margin: 0 0 12px; }
     .panel {
       background: #fff;
       border: 3px solid var(--ink);
@@ -54,6 +56,9 @@
       font: inherit;
       margin-bottom: 16px;
     }
+    /* Vinkje "Onthoud mij": vakje en tekst naast elkaar */
+    .check { display: flex; align-items: center; gap: 8px; font-weight: 500; margin-bottom: 16px; cursor: pointer; }
+    .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--red); }
     button {
       width: 100%;
       padding: 12px;
@@ -69,7 +74,23 @@
     }
     button:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
     button:disabled { opacity: .6; cursor: wait; }
+    /* Tekstlink-knop, zoals "Wachtwoord vergeten?" */
+    button.link {
+      width: auto;
+      padding: 0;
+      margin-top: 14px;
+      border: 0;
+      background: none;
+      box-shadow: none;
+      color: var(--ink);
+      font-size: .95rem;
+      text-decoration: underline;
+    }
+    button.link:active { transform: none; }
     .error { color: var(--red); font-weight: 700; min-height: 1.4em; margin: 12px 0 0; }
+    .notice { color: var(--green); font-weight: 700; margin: 12px 0 0; }
+    .notice:empty { display: none; }
+    .hint { margin: 0 0 16px; line-height: 1.5; }
     .stats { margin: 0 0 20px; line-height: 1.7; }
     [hidden] { display: none !important; }
   </style>
@@ -84,14 +105,41 @@
       <input id="email" type="email" autocomplete="username" required>
       <label for="password">Wachtwoord</label>
       <input id="password" type="password" autocomplete="current-password" required>
+      <label class="check"><input id="remember" type="checkbox" checked> Onthoud mij</label>
       <button type="submit" id="loginBtn">Inloggen</button>
       <p class="error" id="error" role="alert"></p>
+      <p class="notice" id="loginNotice" role="status"></p>
+      <button type="button" class="link" id="toForgot">Wachtwoord vergeten?</button>
+    </form>
+
+    <!-- Wachtwoord vergeten: stuurt een mail met een link om een nieuw wachtwoord te kiezen -->
+    <form class="panel" id="forgot" hidden>
+      <h2>Wachtwoord vergeten</h2>
+      <p class="hint">Vul je e-mailadres in. Je krijgt een mail met een link om een nieuw wachtwoord te kiezen.</p>
+      <label for="forgotEmail">E-mail</label>
+      <input id="forgotEmail" type="email" autocomplete="username" required>
+      <button type="submit" id="forgotBtn">Stuur mail</button>
+      <p class="error" id="forgotError" role="alert"></p>
+      <p class="notice" id="forgotNotice" role="status"></p>
+      <button type="button" class="link" id="toLogin">Terug naar inloggen</button>
+    </form>
+
+    <!-- Nieuw wachtwoord: verschijnt na het openen van de link uit de mail -->
+    <form class="panel" id="newpw" hidden>
+      <h2>Nieuw wachtwoord kiezen</h2>
+      <label for="newPassword">Nieuw wachtwoord</label>
+      <input id="newPassword" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="newPassword2">Herhaal wachtwoord</label>
+      <input id="newPassword2" type="password" autocomplete="new-password" minlength="8" required>
+      <button type="submit" id="newpwBtn">Opslaan</button>
+      <p class="error" id="newpwError" role="alert"></p>
     </form>
 
     <!-- Na inloggen: tijdelijk overzicht om te controleren dat alles werkt -->
     <section class="panel" id="home" hidden>
       <p class="stats" id="stats">Laden…</p>
       <button id="logoutBtn">Uitloggen</button>
+      <p class="notice" id="homeNotice" role="status"></p>
     </section>
   </main>
 
@@ -99,19 +147,64 @@
     // Vaste versie, zodat er nooit ongemerkt andere code binnenkomt
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";
 
+    const $ = (id) => document.getElementById(id);
+
+    // Browseropslag kan geblokkeerd zijn (privévenster); dan gewoon doorgaan zonder
+    const safe = (fn) => { try { return fn(); } catch { return null; } };
+
+    // "Onthoud mij": aan = sessie in localStorage (blijft na afsluiten), uit = sessionStorage (weg na sluiten tabblad)
+    const REMEMBER_KEY = "stashdex-onthoud-mij";
+    const remember = () => safe(() => localStorage.getItem(REMEMBER_KEY)) !== "nee";
+    const storage = {
+      getItem: (key) => safe(() => sessionStorage.getItem(key)) ?? safe(() => localStorage.getItem(key)),
+      setItem: (key, value) => {
+        const keep = remember();
+        safe(() => (keep ? localStorage : sessionStorage).setItem(key, value));
+        safe(() => (keep ? sessionStorage : localStorage).removeItem(key));
+      },
+      removeItem: (key) => {
+        safe(() => sessionStorage.removeItem(key));
+        safe(() => localStorage.removeItem(key));
+      },
+    };
+
+    // Link uit de "wachtwoord vergeten"-mail uitlezen, vóórdat Supabase het adres opschoont
+    const hash = new URLSearchParams(location.hash.slice(1));
+    let recovering = hash.get("type") === "recovery";
+    const linkError = hash.get("error_description");
+    if (linkError) history.replaceState(null, "", location.pathname);
+
     // Openbare verbindingsgegevens; de beveiliging zit in login + RLS in Supabase
     const supabase = createClient(
       "https://iffsbsywjzmcmxsjhikd.supabase.co",
-      "sb_publishable_y9pL7nfJLtZPdwTtQa5WTg_ewt3OtEj"
+      "sb_publishable_y9pL7nfJLtZPdwTtQa5WTg_ewt3OtEj",
+      // "implicit": de link uit de mail werkt ook in een ander tabblad of andere browser
+      { auth: { storage, persistSession: true, detectSessionInUrl: true, flowType: "implicit" } }
     );
 
-    const $ = (id) => document.getElementById(id);
+    // Duidelijke melding per oorzaak, met de technische code erbij voor het zoeken naar de fout
+    const reasons = {
+      invalid_credentials: "E-mail of wachtwoord klopt niet.",
+      email_not_confirmed: "Dit e-mailadres is nog niet bevestigd in Supabase.",
+      over_request_rate_limit: "Te veel pogingen, probeer het over een paar minuten opnieuw.",
+      over_email_send_rate_limit: "Er zijn te veel mails verstuurd, probeer het later opnieuw.",
+      same_password: "Dit is hetzelfde als je oude wachtwoord.",
+      weak_password: "Dit wachtwoord is te zwak, kies een langer of lastiger wachtwoord.",
+    };
+    const explain = (error) => `${reasons[error.code] || error.message} (${error.code || error.status})`;
 
-    // Toont het juiste scherm op basis van wel/niet ingelogd
-    async function render(session) {
-      $("login").hidden = !!session;
-      $("home").hidden = !session;
-      if (session) await loadStats(session);
+    // Toont precies één scherm
+    const views = ["login", "forgot", "newpw", "home"];
+    function show(view) {
+      views.forEach((v) => ($(v).hidden = v !== view));
+    }
+
+    // Kiest het juiste scherm op basis van wel/niet ingelogd
+    function render(session) {
+      if (session && recovering) return show("newpw");
+      if (!session) return show("login");
+      show("home");
+      loadStats(session);
     }
 
     // Tijdelijke controle: telt je collectie en de geladen kaartdata
@@ -136,29 +229,76 @@
       }));
     }
 
+    // Vinkje staat zoals je het de vorige keer achterliet
+    $("remember").checked = remember();
+    if (linkError) {
+      $("error").textContent = `De link uit de mail werkt niet (meer): ${linkError}. Vraag een nieuwe aan via "Wachtwoord vergeten?".`;
+    }
+
     $("login").addEventListener("submit", async (e) => {
       e.preventDefault();
       $("error").textContent = "";
+      $("loginNotice").textContent = "";
+      // Eerst de keuze opslaan, zodat de sessie meteen op de juiste plek belandt
+      safe(() => localStorage.setItem(REMEMBER_KEY, $("remember").checked ? "ja" : "nee"));
       $("loginBtn").disabled = true;
       const { error } = await supabase.auth.signInWithPassword({
         email: $("email").value.trim(),
         password: $("password").value,
       });
       $("loginBtn").disabled = false;
-      // Duidelijke melding per oorzaak, met de technische code erbij voor het zoeken naar de fout
-      const reasons = {
-        invalid_credentials: "E-mail of wachtwoord klopt niet.",
-        email_not_confirmed: "Dit e-mailadres is nog niet bevestigd in Supabase.",
-        over_request_rate_limit: "Te veel pogingen, probeer het over een paar minuten opnieuw.",
-      };
-      if (error) $("error").textContent =
-        `Inloggen mislukt: ${reasons[error.code] || error.message} (${error.code || error.status})`;
+      if (error) $("error").textContent = `Inloggen mislukt: ${explain(error)}`;
     });
 
-    $("logoutBtn").addEventListener("click", () => supabase.auth.signOut());
+    $("toForgot").addEventListener("click", () => {
+      $("forgotEmail").value = $("email").value.trim();
+      $("forgotError").textContent = "";
+      $("forgotNotice").textContent = "";
+      show("forgot");
+    });
+
+    $("toLogin").addEventListener("click", () => show("login"));
+
+    $("forgot").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("forgotError").textContent = "";
+      $("forgotNotice").textContent = "";
+      $("forgotBtn").disabled = true;
+      const { error } = await supabase.auth.resetPasswordForEmail($("forgotEmail").value.trim(), {
+        redirectTo: location.origin + location.pathname,
+      });
+      $("forgotBtn").disabled = false;
+      if (error) return ($("forgotError").textContent = `Mail versturen mislukt: ${explain(error)}`);
+      // Zegt bewust niet of het adres bestaat, zodat niemand zo accounts kan raden
+      $("forgotNotice").textContent = "Als dit adres bij Stashdex bekend is, krijg je binnen een paar minuten een mail. Kijk ook in je spam.";
+    });
+
+    $("newpw").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      $("newpwError").textContent = "";
+      if ($("newPassword").value !== $("newPassword2").value) {
+        return ($("newpwError").textContent = "De twee wachtwoorden zijn niet hetzelfde.");
+      }
+      $("newpwBtn").disabled = true;
+      const { error } = await supabase.auth.updateUser({ password: $("newPassword").value });
+      $("newpwBtn").disabled = false;
+      if (error) return ($("newpwError").textContent = `Opslaan mislukt: ${explain(error)}`);
+      recovering = false;
+      history.replaceState(null, "", location.pathname);
+      $("newPassword").value = $("newPassword2").value = "";
+      const { data } = await supabase.auth.getSession();
+      render(data.session);
+      $("homeNotice").textContent = "Je nieuwe wachtwoord is opgeslagen.";
+    });
+
+    $("logoutBtn").addEventListener("click", () => {
+      $("homeNotice").textContent = "";
+      supabase.auth.signOut();
+    });
 
     // Reageert op inloggen/uitloggen, ook bij het openen van de pagina
-    supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") recovering = true;
       setTimeout(() => render(session), 0);
     });
   </script>
