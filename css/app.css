@@ -69,6 +69,11 @@ body{padding:0}
 .mono{font-family:var(--font-mono);font-weight:700}
 .loading{color:var(--on-page);font-family:var(--font-mono);font-weight:700;font-size:13px;letter-spacing:.8px;text-transform:uppercase}
 .more{display:flex;justify-content:center;padding:8px 0 24px}
+/* Iets bredere kaarttegels, zodat hoge waardes (€ 111,17) en #CC004 niet worden afgekapt */
+.kk-grid{grid-template-columns:repeat(auto-fill,minmax(min(180px,100%),1fr))}
+/* Kopje boven een subset (Classic Collection, Trainer Gallery …) over de hele breedte */
+.part-title{grid-column:1/-1;margin:14px 0 0;font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.3px;color:var(--on-page)}
+.lrow.lpart{display:block;cursor:default;margin-top:10px;font-family:var(--font-display);font-weight:800;font-size:16px;border-bottom:1.5px dashed var(--line);border-radius:0}
 
 /* Lijstweergave */
 .listbox{background:var(--paper);border-radius:18px;box-shadow:var(--shadow-raised);padding:6px;display:flex;flex-direction:column}

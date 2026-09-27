@@ -5,6 +5,9 @@ import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES } from "./rarity.
 
 const EUR_PER_USD = 0.87; // vaste koers van 22-09-2026; prijzen in de data zijn in dollars (TCGPlayer)
 const PAGE = 20; // aantal kaarten per "Toon meer"
+// Subsets die bij een hoofdset horen, en de letters voor hun kaartnummers (als die alleen cijfers zijn)
+const SUBSET_NAME = /^(.+?):? (Classic Collection|Trainer Gallery|Galarian Gallery|Shiny Vault)$/;
+const PART_CODES = { "Classic Collection": "CC" };
 
 // ---------- Kleine hulpjes ----------
 
@@ -60,6 +63,7 @@ const pref = {
 const S = {
   userId: null,
   sets: [], setById: {}, series: [], setsError: null,
+  parentOf: {}, subsets: {},          // subsets (bv. Classic Collection) per hoofdset
   cards: {}, cardsError: {},          // per set-id: de kaarten uit data/cards/<id>.json
   owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count, raw_value_usd }
   nav: "collection",
@@ -72,11 +76,17 @@ const S = {
 };
 
 const setIdOf = (cardId) => cardId.slice(0, cardId.indexOf("-"));
+const parentIdOf = (setId) => S.parentOf[setId] || setId;
 const countOf = (cardId) => S.owned[cardId]?.count || 0;
 // Eigen waarde gaat voor; anders de marktprijs uit de nachtelijke data
 const valueUsd = (card) => S.owned[card.id]?.raw_value_usd ?? card.usd ?? null;
-const setTotal = (set) => S.cards[set.id]?.length || set.total || 0;
-const numTxt = (card) => "#" + (/^\d+$/.test(card.number) ? card.number.padStart(3, "0") : card.number);
+// Totaal van een hoofdset inclusief zijn subsets
+const setTotal = (set) => S.cards[set.id]?.length || (S.subsets[set.id] || []).reduce((n, s) => n + (s.total || 0), set.total || 0);
+// Kaartnummer; Classic Collection krijgt "CC" ervoor, zodat #004 en #CC004 niet door elkaar lopen
+const numTxt = (card) => {
+  const n = /^\d+$/.test(card.number) ? card.number.padStart(3, "0") : card.number;
+  return "#" + (card.partCode && /^\d/.test(n) ? card.partCode : "") + n;
+};
 
 function money(usd) {
   if (usd == null) return null;
@@ -89,7 +99,10 @@ function money(usd) {
 // Aantal verschillende kaarten in bezit, per set
 function ownedBySet() {
   const out = {};
-  for (const id of Object.keys(S.owned)) out[setIdOf(id)] = (out[setIdOf(id)] || 0) + 1;
+  for (const id of Object.keys(S.owned)) {
+    const set = parentIdOf(setIdOf(id));
+    out[set] = (out[set] || 0) + 1;
+  }
   return out;
 }
 
@@ -102,15 +115,30 @@ async function loadSets() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     // Nieuwste sets eerst; series in de volgorde van hun nieuwste set
     const sets = (await res.json()).sort((a, b) => (b.releaseDate || "").localeCompare(a.releaseDate || ""));
-    const bySeries = new Map();
+
+    // Subsets horen bij hun hoofdset, herkend aan de naam: "<hoofdset>[:] Classic Collection" enz.
+    const byName = new Map(sets.map((s) => [s.series + "|" + s.name, s]));
+    S.parentOf = {};
+    S.subsets = {};
     for (const s of sets) {
+      const m = s.name.match(SUBSET_NAME);
+      const parent = m && byName.get(s.series + "|" + m[1]);
+      if (!parent) continue;
+      s.part = m[2];
+      S.parentOf[s.id] = parent.id;
+      (S.subsets[parent.id] ||= []).push(s);
+    }
+
+    const bySeries = new Map();
+    for (const s of sets.filter((x) => !S.parentOf[x.id])) {
       if (!bySeries.has(s.series)) bySeries.set(s.series, []);
       bySeries.get(s.series).push(s);
     }
     S.sets = sets;
     S.setById = Object.fromEntries(sets.map((s) => [s.id, s]));
     S.series = [...bySeries].map(([name, list]) => ({ name, sets: list }));
-    if (!S.setById[S.setId]) S.setId = sets[0]?.id;
+    S.setId = parentIdOf(S.setId);
+    if (!S.setById[S.setId]) S.setId = S.series[0]?.sets[0]?.id;
   } catch (err) {
     S.setsError = `De lijst met sets kon niet geladen worden (${err.message}).`;
   }
@@ -120,10 +148,15 @@ async function loadCards(setId) {
   if (!setId || S.cards[setId]) return;
   delete S.cardsError[setId];
   try {
-    const res = await fetch(`data/cards/${encodeURIComponent(setId)}.json`, { cache: "no-cache" });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Hoofdset en zijn subsets samen ophalen; de subsets komen achteraan
+    const parts = [S.setById[setId], ...(S.subsets[setId] || [])].filter(Boolean);
+    const lists = await Promise.all(parts.map(async (p) => {
+      const res = await fetch(`data/cards/${encodeURIComponent(p.id)}.json`, { cache: "no-cache" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return (await res.json()).map((c) => ({ ...c, setId: p.id, part: p.part || null, partCode: PART_CODES[p.part] || null }));
+    }));
     // i = plek in de set, voor sorteren op nummer
-    S.cards[setId] = (await res.json()).map((c, i) => ({ ...c, i }));
+    S.cards[setId] = lists.flat().map((c, i) => ({ ...c, i }));
   } catch (err) {
     S.cardsError[setId] = `De kaarten van deze set konden niet geladen worden (${err.message}).`;
   }
@@ -202,6 +235,21 @@ function fact(label, value, cls) {
   return el("div", { class: "kk-fact" + (cls ? " " + cls : "") }, el("i", {}, label), el("b", { class: empty ? "kk-none" : null }, empty ? "—" : value));
 }
 
+// Kopje boven een subset (bv. "Classic Collection") in het kaartoverzicht
+const partTitle = (part) => el("h3", { class: "part-title" }, part);
+
+// Zet een kopje vóór de eerste kaart van elke subset; alleen bij sorteren op nummer, anders lopen ze door elkaar
+function withHeadings(cards, heading, node) {
+  const out = [];
+  let prev = null;
+  for (const c of cards) {
+    if (S.sort === "number" && c.part && c.part !== prev) out.push(heading(c.part));
+    prev = c.part;
+    out.push(node(c));
+  }
+  return out;
+}
+
 // Kaarttegel: plaatje, type, naam, zeldzaamheid en Nr · Aantal · Waarde
 function cardTile(card) {
   const n = countOf(card.id), t = tier(card.rarity), missing = !n;
@@ -273,7 +321,8 @@ function renderSeries(bySet) {
   const current = S.cards[S.setId];
   const currentMatches = q && current?.some((c) => c.name.toLowerCase().includes(q));
   const groups = S.series.map((g) => {
-    const sets = g.sets.filter((s) => !q || s.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q) || (s.id === S.setId && currentMatches));
+    const sets = g.sets.filter((s) => !q || s.name.toLowerCase().includes(q) || g.name.toLowerCase().includes(q) || (s.id === S.setId && currentMatches) ||
+      (S.subsets[s.id] || []).some((x) => x.name.toLowerCase().includes(q)));
     const open = q ? true : S.open[g.name] ?? g.sets.some((s) => s.id === S.setId);
     return { g, sets, open };
   }).filter((x) => x.sets.length);
@@ -317,7 +366,9 @@ function renderMain(bySet) {
   if (!set) return [...out, el("p", { class: "loading" }, "Sets laden…")];
 
   const total = setTotal(set);
-  out.push(pageTitle(set.name, `${set.series} · ${total} kaarten`), setProgress(set.name, bySet[set.id] || 0, total));
+  const parts = (S.subsets[set.id] || []).map((s) => s.part);
+  out.push(pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
+    setProgress(set.name, bySet[set.id] || 0, total));
 
   const cards = S.cards[set.id];
   if (!cards) {
@@ -385,7 +436,7 @@ function renderMain(bySet) {
     out.push(el("div", { class: "listbox", role: "table", "aria-label": "Kaarten" },
       el("div", { class: "lrow lhead", role: "row" }, el("span", {}, "Nr"), el("span", {}, "Naam"), el("span", { class: "col-type" }, "Type"),
         el("span", { class: "col-rar" }, "Zeldzaamheid"), el("span", {}, "Aantal"), el("span", { style: "text-align:right" }, "Waarde")),
-      shown.map((c) => {
+      withHeadings(shown, (part) => el("div", { class: "lrow lpart", role: "row" }, part), (c) => {
         const n = countOf(c.id);
         return el("button", { type: "button", class: "lrow" + (n ? "" : " lmiss"), onclick: () => openModal(c) },
           el("span", { class: "mono" }, numTxt(c)), el("span", { class: "lname" }, c.name),
@@ -395,11 +446,11 @@ function renderMain(bySet) {
           el("span", { class: "mono lval" }, money(valueUsd(c)) ?? "—"));
       })));
   } else if (S.view === "grid") {
-    out.push(el("div", { class: "raster" }, shown.map((c) =>
+    out.push(el("div", { class: "raster" }, withHeadings(shown, partTitle, (c) =>
       el("button", { type: "button", class: `thumb kk-type-${typeKey(c)}` + (countOf(c.id) ? "" : " tmiss"), "aria-label": c.name, title: c.name, onclick: () => openModal(c) },
         el("img", { src: c.img, alt: "", loading: "lazy" }), el("span", { class: "mono" }, numTxt(c))))));
   } else {
-    out.push(el("div", { class: "kk-grid" }, shown.map(cardTile)));
+    out.push(el("div", { class: "kk-grid" }, withHeadings(shown, partTitle, cardTile)));
   }
 
   if (list.length > limit) {
@@ -432,7 +483,8 @@ let modal = null;
 
 function openModal(card) {
   closeModal();
-  const set = S.setById[setIdOf(card.id)];
+  const set = S.setById[parentIdOf(setIdOf(card.id))];
+  const where = card.part ? `${set?.name || ""} · ${card.part} · ${numTxt(card)}` : `${set?.name || ""} · #${card.number}/${set?.printedTotal || set?.total || "?"}`;
   const have = countOf(card.id);
   let count = Math.max(1, have);
   const t = tier(card.rarity);
@@ -476,7 +528,7 @@ function openModal(card) {
       el("div", { class: "kk-modal-art" + (t?.band ? " kk-holo-" + t.band : ""), style: `--kk-holo-max:${card.rarity ? holoLevel(card.rarity) : 0.55}` },
         el("img", { src: card.imgLarge || card.img, alt: card.name })),
       el("h2", {}, card.name),
-      el("div", { class: "kk-modal-sub" }, `${set?.name || ""} · #${card.number}/${set?.printedTotal || set?.total || "?"} · ${card.rarity || "—"}`),
+      el("div", { class: "kk-modal-sub" }, `${where} · ${card.rarity || "—"}`),
       el("div", { class: "kk-fieldgrid" },
         el("div", { class: "kk-full stepper-wrap" },
           el("span", { class: "flabel" }, "Aantal"),
