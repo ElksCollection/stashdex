@@ -42,10 +42,16 @@ const ICONS = {
   filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
 };
 
-// Het kluislogo: gouden kaart met sleutelgat
-function mark(w = 38, h = 46) {
+// Het Stashdex-logo: schuine kaart met holo-binnenkant, gele S en sterretje.
+// Elke kopie krijgt een eigen id voor het verloop, anders pakt elke kopie dat van de eerste.
+let logoCount = 0;
+function logo(size, cls = "") {
+  const id = "sdx-holo-" + ++logoCount;
   const t = document.createElement("template");
-  t.innerHTML = `<svg class="kk-mark" viewBox="0 0 38 46" width="${w}" height="${h}" aria-hidden="true"><defs><linearGradient id="kk-mark-foil" x1="0" y1="0" x2="0" y2="1"><stop class="s1" offset="0"/><stop class="s2" offset="1"/></linearGradient></defs><rect class="m-card" x="1" y="1" width="36" height="44" rx="7"/><rect class="m-ring" x="4.5" y="4.5" width="29" height="37" rx="4.5"/><circle class="m-hole" cx="19" cy="19" r="5.5"/><path class="m-hole" d="M16.6 22.5h4.8l1.6 10h-8z"/></svg>`;
+  t.innerHTML = `<svg class="sdx-logo ${cls}" viewBox="0 0 120 120" width="${size}" height="${size}" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6d365"/><stop offset=".4" stop-color="#f98ca8"/><stop offset=".75" stop-color="#8fc8ff"/><stop offset="1" stop-color="#f6d365"/></linearGradient></defs>`
+    + `<g transform="rotate(-9 60 60)"><rect x="26" y="12" width="68" height="96" rx="12" fill="#0b2447" stroke="#ffcb05" stroke-width="5"/><rect x="35" y="21" width="50" height="78" rx="7" fill="url(#${id})"/>`
+    + `<path transform="translate(41.03 80) scale(0.058 -0.058)" d="M25 69Q25 125 41.0 185.5Q57 246 79 246Q83 246 162.0 219.0Q241 192 281.0 192.0Q321 192 333.0 200.5Q345 209 345.0 225.0Q345 241 323.0 253.5Q301 266 268.0 275.5Q235 285 196.5 303.0Q158 321 125.0 343.0Q92 365 70.0 405.5Q48 446 48 498Q48 720 313 720Q412 720 484.0 707.5Q556 695 585.5 679.5Q615 664 615 649Q615 597 590.5 537.0Q566 477 543 477Q539 477 517 486Q451 515 407.5 515.0Q364 515 348.5 507.0Q333 499 333.0 482.5Q333 466 355.0 455.5Q377 445 409.5 436.5Q442 428 480.5 410.5Q519 393 552.0 369.5Q585 346 607.0 303.0Q629 260 629 203Q629 143 598 94Q579 64 549.0 42.0Q519 20 465.5 5.5Q412 -9 327.5 -9.0Q243 -9 167.0 5.0Q91 19 58.0 36.0Q25 53 25 69Z" fill="#ffcb05" stroke="#0b2447" stroke-width="120.7" stroke-linejoin="round" paint-order="stroke"/></g>`
+    + `<path d="M96 12l3.2 8.3 8.3 3.2-8.3 3.2-3.2 8.3-3.2-8.3-8.3-3.2 8.3-3.2z" fill="#ffcb05" stroke="#0b2447" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
   return t.content.firstChild;
 }
 
@@ -65,6 +71,7 @@ const S = {
   sets: [], setById: {}, series: [], setsError: null,
   parentOf: {}, subsets: {},          // subsets (bv. Classic Collection) per hoofdset
   cards: {}, cardsError: {},          // per set-id: de kaarten uit data/cards/<id>.json
+  cardById: {},                       // alle geladen kaarten op kaart-id (voor de kaartwaaier)
   owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count, raw_value_usd }
   nav: "collection",
   setId: pref.get("set", "me55"),
@@ -144,8 +151,17 @@ async function loadSets() {
   }
 }
 
-async function loadCards(setId) {
-  if (!setId || S.cards[setId]) return;
+// Kaarten van een set ophalen; een set die al onderweg is wordt niet dubbel opgehaald
+const loading = {};
+function loadCards(setId) {
+  if (!setId || S.cards[setId]) return Promise.resolve();
+  return (loading[setId] ||= fetchCards(setId).finally(() => {
+    delete loading[setId];
+    render();
+  }));
+}
+
+async function fetchCards(setId) {
   delete S.cardsError[setId];
   try {
     // Hoofdset en zijn subsets samen ophalen; de subsets komen achteraan
@@ -157,10 +173,10 @@ async function loadCards(setId) {
     }));
     // i = plek in de set, voor sorteren op nummer
     S.cards[setId] = lists.flat().map((c, i) => ({ ...c, i }));
+    for (const c of S.cards[setId]) S.cardById[c.id] = c;
   } catch (err) {
     S.cardsError[setId] = `De kaarten van deze set konden niet geladen worden (${err.message}).`;
   }
-  render();
 }
 
 // Hele collectie ophalen, in stukken van 1000 (de maximale grootte per keer)
@@ -251,9 +267,10 @@ function withHeadings(cards, heading, node) {
 }
 
 // Kaarttegel: plaatje, type, naam, zeldzaamheid en Nr · Aantal · Waarde
-function cardTile(card) {
+// foil = glans altijd aan (topkaart), anders alleen vanaf Illustration Rare
+function cardTile(card, { foil = false } = {}) {
   const n = countOf(card.id), t = tier(card.rarity), missing = !n;
-  const cls = ["kk-card", "kk-type-" + typeKey(card), t?.band && "kk-holo-" + t.band, !missing && t && t.rank >= 5 && "kk-card-foil", missing && "kk-card-missing"].filter(Boolean).join(" ");
+  const cls = ["kk-card", "kk-type-" + typeKey(card), t?.band && "kk-holo-" + t.band, !missing && (foil || (t && t.rank >= 5)) && "kk-card-foil", missing && "kk-card-missing"].filter(Boolean).join(" ");
   return el("button", { type: "button", class: cls, style: `--kk-holo-max:${holoLevel(card.rarity)}`, "aria-label": card.name + (missing ? " (nog niet in bezit, klik om toe te voegen)" : ""), onclick: () => openModal(card) },
     el("div", { class: "kk-card-art" }, el("img", { src: card.img, alt: "", loading: "lazy" })),
     el("span", { class: "kk-type-tag" }, typeName(card)),
@@ -269,20 +286,23 @@ function cardTile(card) {
 const ui = {};
 
 function buildShell() {
-  ui.heroSub = el("div", { class: "kk-hero-sub" });
-  ui.cur = el("div", { class: "cur-float" });
-  const sparks = [[4, 18, 0], [12, 62, -0.9], [30, 88, -1.7], [70, 8, -0.5], [78, 52, -2.1], [92, 80, -1.2]]
-    .map(([l, t, d]) => el("span", { class: "kk-hero-spark", "aria-hidden": "true", style: `left:${l}%;top:${t}%;animation-delay:${d}s` }, "✦"));
-  const hero = el("div", { class: "hero-wrap" },
-    el("header", { class: "kk-hero" }, sparks,
-      el("div", { class: "kk-hero-inner" }, el("div", { class: "kk-brand" }, el("div", {}, el("h1", {}, "Stashdex"), ui.heroSub)))),
+  // Slanke holo-header: kaartwaaier · logo + naam · kaartwaaier, valuta rechts
+  ui.heroSub = el("span", { class: "slim-sub" });
+  ui.cur = el("div", { class: "slim-cur" });
+  ui.fanLeft = el("div", { class: "fan fan-left", "aria-label": "Uitgelicht uit je collectie" });
+  ui.fanRight = el("div", { class: "fan fan-right", "aria-label": "Uitgelicht uit je collectie" });
+  ui.fanKey = null;
+  const hero = el("header", { class: "slimbar kk-hero" },
+    ui.fanLeft,
+    el("div", { class: "slim-brand" }, logo(40, "slim-logo"), el("h1", { class: "slim-title" }, "Stashdex"), ui.heroSub),
+    ui.fanRight,
     ui.cur);
 
   // Menubalk: logo, Scan, Start · Collectie · Wensen · Statistiek, Uitloggen
   ui.rail = {};
   const railBtn = (key, label) => (ui.rail[key] = el("button", { type: "button", class: "rail-btn", onclick: () => go(key) }, icon(ICONS[key]), el("span", {}, label)));
   const rail = el("nav", { class: "rail", "aria-label": "Hoofdmenu" },
-    el("button", { type: "button", class: "mark-btn", "aria-label": "Intro opnieuw afspelen", onclick: () => toast("De intro komt in stap 4") }, mark()),
+    el("button", { type: "button", class: "mark-btn", "aria-label": "Intro opnieuw afspelen", onclick: () => toast("De intro komt in stap 4") }, logo(52)),
     el("button", { type: "button", class: "scan-btn", "aria-label": "Kaart scannen", onclick: () => toast("Scannen komt in stap 5") }, icon(ICONS.scan, 24), el("span", {}, "Scan")),
     el("span", { class: "rail-sep" }),
     railBtn("home", "Start"), railBtn("collection", "Collectie"), railBtn("wish", "Wensen"), railBtn("stats", "Statistiek"),
@@ -312,8 +332,26 @@ function render() {
     S.cur = v; pref.set("cur", v); render();
   }));
   for (const [key, btn] of Object.entries(ui.rail)) btn.classList.toggle("on", S.nav === key);
+  renderFan();
   renderSeries(bySet);
   ui.main.replaceChildren(...renderMain(bySet));
+}
+
+// Kaartwaaier: de 6 waardevolste kaarten uit de collectie (1–3 links, 4–6 rechts)
+function renderFan() {
+  const top = Object.keys(S.owned).map((id) => S.cardById[id]).filter(Boolean)
+    .sort((a, b) => (valueUsd(b) ?? -1) - (valueUsd(a) ?? -1)).slice(0, 6);
+  // Alleen opnieuw opbouwen als de kaarten veranderd zijn, zodat de waaier niet knippert
+  const key = top.map((c) => c.id).join(",");
+  if (key === ui.fanKey) return;
+  ui.fanKey = key;
+  const fanCard = (c, i) => {
+    const label = `${c.name} · ${S.setById[parentIdOf(c.setId)]?.name || ""}`;
+    return el("button", { type: "button", class: `fan-card f${i} kk-type-${typeKey(c)}`, title: label, "aria-label": label, onclick: () => openModal(c) },
+      el("img", { src: c.img, alt: "" }));
+  };
+  ui.fanLeft.replaceChildren(...top.slice(0, 3).map(fanCard));
+  ui.fanRight.replaceChildren(...top.slice(3, 6).map(fanCard));
 }
 
 function renderSeries(bySet) {
@@ -367,10 +405,19 @@ function renderMain(bySet) {
 
   const total = setTotal(set);
   const parts = (S.subsets[set.id] || []).map((s) => s.part);
-  out.push(pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
-    setProgress(set.name, bySet[set.id] || 0, total));
-
   const cards = S.cards[set.id];
+
+  // Kop van de set: titel + voortgang links, rechts de topkaart (zeldzaamste in bezit, dan hoogste waarde)
+  const feat = (cards || []).filter((c) => countOf(c.id))
+    .sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || (valueUsd(b) ?? -1) - (valueUsd(a) ?? -1))[0];
+  out.push(el("div", { class: "sethead" + (feat ? "" : " sethead-solo") },
+    el("div", { class: "sethead-main" },
+      pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
+      setProgress(set.name, bySet[set.id] || 0, total)),
+    feat ? el("div", { class: "feat" },
+      el("span", { class: "feat-badge" }, "Topkaart van deze set"),
+      el("div", { class: "feat-card" }, cardTile(feat, { foil: true }))) : null));
+
   if (!cards) {
     out.push(S.cardsError[set.id] ? emptyState("Er ging iets mis", S.cardsError[set.id]) : el("p", { class: "loading" }, "Kaarten laden…"));
     return out;
@@ -596,6 +643,9 @@ async function enter(session) {
   if (S.userId !== session.user.id) return; // intussen uitgelogd
   render();
   loadCards(S.setId);
+  // Ook de sets van je kaarten ophalen, voor de kaartwaaier in de header
+  const ownedSets = new Set(Object.keys(S.owned).map((id) => parentIdOf(setIdOf(id))));
+  ownedSets.forEach((id) => { if (S.setById[id]) loadCards(id); });
 }
 
 function leave() {

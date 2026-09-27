@@ -23,12 +23,42 @@ body{padding:0}
 
 /* ---------- App-indeling: header, menubalk, setpaneel, hoofdvlak ---------- */
 .app{height:100vh;display:flex;flex-direction:column;gap:18px;box-sizing:border-box}
-.hero-wrap{padding:0 16px;position:relative}
-.hero-wrap .kk-hero-inner{justify-content:center}
-.hero-wrap .kk-brand{flex-direction:column;gap:6px;text-align:center}
-.hero-wrap .kk-hero h1{font-size:44px}
-.hero-wrap .kk-mark{display:none}
-.cur-float{position:absolute;right:48px;top:50%;transform:translateY(-50%)}
+/* Slanke holo-header: waaier · merk · waaier, valuta rechts */
+.slimbar{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:0 16px;padding:10px 24px;border-radius:0 0 22px 22px;overflow:visible;min-height:72px;box-sizing:border-box}
+.slimbar::before{border-radius:0 0 22px 22px}
+.slim-brand{position:relative;z-index:1;display:flex;align-items:center;gap:12px;background:var(--paper);border-radius:16px;padding:8px 22px 9px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line)}
+.slim-title{margin:0;font-family:var(--font-title);font-weight:400;font-size:30px;line-height:1;letter-spacing:.3px;background:linear-gradient(180deg,var(--gold-bright) 10%,var(--gold) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.slim-sub{font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap}
+.slim-cur{position:absolute;right:24px;top:50%;transform:translateY(-50%);z-index:2}
+
+/* Kaartwaaier: je 6 waardevolste kaarten, 3 links en 3 rechts */
+.fan{position:relative;z-index:1;display:flex;align-items:center;height:56px}
+.fan-left{justify-content:flex-end;padding-right:18px}
+.fan-right{justify-content:flex-start;padding-left:18px;margin-right:120px}
+.fan-card{width:44px;aspect-ratio:5/7;padding:2px;border:2.5px solid var(--kk-type,var(--card-frame));border-radius:7px;background:var(--paper);box-shadow:0 6px 12px -4px rgba(11,36,71,.45);cursor:pointer;margin:0 -8px;transition:transform .3s var(--kk-spring),z-index 0s;position:relative;box-sizing:border-box}
+.fan-card img{width:100%;height:100%;object-fit:cover;border-radius:4px;display:block}
+.fan-card.f0{transform:rotate(-14deg) translateY(6px)}
+.fan-card.f1{transform:rotate(-3deg) translateY(-2px);z-index:1}
+.fan-card.f2{transform:rotate(10deg) translateY(4px)}
+.fan-right .fan-card.f0{transform:rotate(-10deg) translateY(4px)}
+.fan-right .fan-card.f2{transform:rotate(14deg) translateY(6px)}
+.fan-card:hover{transform:translateY(-10px) rotate(0) scale(1.15)!important;z-index:3}
+.fan-card:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+
+/* Logo */
+.sdx-logo{display:block;flex:none;overflow:visible}
+.slim-logo{margin:-10px 0 -10px -6px;filter:drop-shadow(0 3px 4px rgba(11,36,71,.3))}
+.mark-btn .sdx-logo{transition:transform .4s var(--kk-spring)}
+.mark-btn:hover .sdx-logo{transform:rotate(6deg) scale(1.06)}
+
+/* Kop van een set: titel + voortgang links, topkaart rechts */
+.sethead{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:24px;align-items:end}
+.sethead-solo{grid-template-columns:minmax(0,1fr)}
+.sethead-main{display:flex;flex-direction:column;gap:16px;min-width:0}
+.feat{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:-6px}
+.feat-badge{position:relative;z-index:2;font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--on-gold);background:linear-gradient(180deg,var(--sun),var(--gold-bright));padding:4px 10px;border-radius:999px;box-shadow:var(--shadow-press-gold);white-space:nowrap}
+.feat-card{width:180px;transform:rotate(3deg);filter:drop-shadow(0 18px 20px rgba(11,36,71,.35))}
+.feat-card .kk-card{width:100%;box-sizing:border-box}
 .layout{flex-grow:1;min-height:0;display:grid;grid-template-columns:88px 330px minmax(0,1fr);gap:20px;padding:0 24px 24px;width:100%;max-width:1680px;margin:0 auto;box-sizing:border-box}
 .scroll{scrollbar-width:thin;scrollbar-color:var(--card-frame) transparent}
 
@@ -109,8 +139,12 @@ button.lrow:hover{background:var(--bg)}
 /* ---------- Kleinere schermen: alles onder elkaar, pagina scrollt als geheel ---------- */
 @media (max-width: 900px){
   .app{height:auto;min-height:100vh}
-  .hero-wrap .kk-hero h1{font-size:34px}
-  .cur-float{right:26px}
+  /* Header: geen waaier, merk en valuta gecentreerd naast/onder elkaar */
+  .slimbar{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:12px 16px}
+  .fan{display:none}
+  .slim-cur{position:static;transform:none}
+  .sethead{grid-template-columns:minmax(0,1fr)}
+  .feat-card{width:160px}
   .layout{grid-template-columns:minmax(0,1fr);padding:0 16px 24px;gap:14px}
   .rail{flex-direction:row;overflow-x:auto;padding:8px;gap:6px}
   .rail-sep{width:0;height:40px;border-top:none;border-left:1.5px dashed var(--line);margin:0 4px}
@@ -124,5 +158,6 @@ button.lrow:hover{background:var(--bg)}
   .lrow .col-type,.lrow .col-rar{display:none}
 }
 @media (max-width: 560px){
-  .cur-float{position:static;transform:none;display:flex;justify-content:center;margin-top:10px}
+  .slim-brand{flex-wrap:wrap;justify-content:center;row-gap:4px}
+  .slim-sub{width:100%;text-align:center}
 }
