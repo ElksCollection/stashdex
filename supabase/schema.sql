@@ -5,7 +5,7 @@
 -- Collectie: welke kaarten iemand heeft, hoeveel, en eventueel een eigen waarde
 create table if not exists public.collection (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  card_id text not null,                       -- kaart-id van pokemontcg.io, bv. 'sv1-8'
+  card_id text not null,                       -- kaart-id van TCGdex, bv. 'sv03.5-006'
   count integer not null default 1 check (count > 0),
   raw_value_usd numeric,                       -- eigen waarde; leeg = marktprijs gebruiken
   graded_value_usd numeric,                    -- voorlopig niet in gebruik (geparkeerd)

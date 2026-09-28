@@ -1,0 +1,155 @@
+{
+ "_uitleg": "Eigen aanvullingen op TCGdex per kaart-id. number = nummer zoals op de kaart gedrukt; img/imgLarge = reserveplaatje, alleen gebruikt zolang TCGdex zelf geen plaatje heeft.",
+ "cards": {
+  "30th-c-001": {
+   "img": "https://images.scrydex.com/pokemon/me55c-4/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-4/large",
+   "number": "4"
+  },
+  "30th-c-002": {
+   "img": "https://images.scrydex.com/pokemon/me55c-5/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-5/large",
+   "number": "5"
+  },
+  "30th-c-003": {
+   "img": "https://images.scrydex.com/pokemon/me55c-11/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-11/large",
+   "number": "11"
+  },
+  "30th-c-004": {
+   "img": "https://images.scrydex.com/pokemon/me55c-11g/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-11g/large",
+   "number": "11"
+  },
+  "30th-c-005": {
+   "img": "https://images.scrydex.com/pokemon/me55c-18/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-18/large",
+   "number": "18"
+  },
+  "30th-c-006": {
+   "img": "https://images.scrydex.com/pokemon/me55c-19/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-19/large",
+   "number": "19"
+  },
+  "30th-c-007": {
+   "img": "https://images.scrydex.com/pokemon/me55c-25/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-25/large",
+   "number": "25"
+  },
+  "30th-c-008": {
+   "img": "https://images.scrydex.com/pokemon/me55c-33/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-33/large",
+   "number": "33"
+  },
+  "30th-c-009": {
+   "img": "https://images.scrydex.com/pokemon/me55c-41/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-41/large",
+   "number": "41"
+  },
+  "30th-c-010": {
+   "img": "https://images.scrydex.com/pokemon/me55c-43/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-43/large",
+   "number": "43"
+  },
+  "30th-c-011": {
+   "img": "https://images.scrydex.com/pokemon/me55c-47/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-47/large",
+   "number": "47"
+  },
+  "30th-c-012": {
+   "img": "https://images.scrydex.com/pokemon/me55c-50/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-50/large",
+   "number": "50"
+  },
+  "30th-c-013": {
+   "img": "https://images.scrydex.com/pokemon/me55c-57/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-57/large",
+   "number": "57"
+  },
+  "30th-c-014": {
+   "img": "https://images.scrydex.com/pokemon/me55c-58/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-58/large",
+   "number": "58"
+  },
+  "30th-c-015": {
+   "img": "https://images.scrydex.com/pokemon/me55c-69/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-69/large",
+   "number": "69"
+  },
+  "30th-c-016": {
+   "img": "https://images.scrydex.com/pokemon/me55c-85/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-85/large",
+   "number": "85"
+  },
+  "30th-c-017": {
+   "img": "https://images.scrydex.com/pokemon/me55c-89/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-89/large",
+   "number": "89"
+  },
+  "30th-c-018": {
+   "img": "https://images.scrydex.com/pokemon/me55c-94/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-94/large",
+   "number": "94"
+  },
+  "30th-c-019": {
+   "img": "https://images.scrydex.com/pokemon/me55c-99/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-99/large",
+   "number": "99"
+  },
+  "30th-c-020": {
+   "img": "https://images.scrydex.com/pokemon/me55c-100/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-100/large",
+   "number": "100"
+  },
+  "30th-c-021": {
+   "img": "https://images.scrydex.com/pokemon/me55c-101/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-101/large",
+   "number": "101"
+  },
+  "30th-c-022": {
+   "img": "https://images.scrydex.com/pokemon/me55c-106p/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-106p/large",
+   "number": "106"
+  },
+  "30th-c-023": {
+   "img": "https://images.scrydex.com/pokemon/me55c-106m/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-106m/large",
+   "number": "106"
+  },
+  "30th-c-024": {
+   "img": "https://images.scrydex.com/pokemon/me55c-106/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-106/large",
+   "number": "106"
+  },
+  "30th-c-025": {
+   "img": "https://images.scrydex.com/pokemon/me55c-108/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-108/large",
+   "number": "108"
+  },
+  "30th-c-026": {
+   "img": "https://images.scrydex.com/pokemon/me55c-114/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-114/large",
+   "number": "114"
+  },
+  "30th-c-027": {
+   "img": "https://images.scrydex.com/pokemon/me55c-123/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-123/large",
+   "number": "123"
+  },
+  "30th-c-028": {
+   "img": "https://images.scrydex.com/pokemon/me55c-138/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-138/large",
+   "number": "138"
+  },
+  "30th-c-029": {
+   "img": "https://images.scrydex.com/pokemon/me55c-149/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-149/large",
+   "number": "149"
+  },
+  "30th-c-030": {
+   "img": "https://images.scrydex.com/pokemon/me55c-203/small",
+   "imgLarge": "https://images.scrydex.com/pokemon/me55c-203/large",
+   "number": "203"
+  }
+ }
+}

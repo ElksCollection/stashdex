@@ -5,7 +5,8 @@ en kaarten met actuele prijzen, eigen collectie en wensenlijst.
 
 - Live: https://elkscollection.github.io/stashdex/
 - Website: GitHub Pages (statische HTML/CSS/JavaScript).
-- Kaartdata en prijzen: pokemontcg.io (elke nacht automatisch opgehaald).
+- Kaartdata: TCGdex (gratis, open source); prijzen: het gratis prijzenbestand
+  van Cardmarket (euro's). Elke nacht automatisch bijgewerkt.
 - Collectie en wensenlijst: Supabase, met login.
 
 ## Opbouw van de code
@@ -20,15 +21,29 @@ en kaarten met actuele prijzen, eigen collectie en wensenlijst.
 - `supabase/schema.sql`: tabellen en beveiliging in Supabase.
 
 ## Kaartdata
-- `scripts/fetch_cards.py` haalt alle sets en kaarten op en schrijft:
-  - `data/sets.json`: alle sets (naam, serie, aantal kaarten, logo).
-  - `data/cards/<set-id>.json`: kaarten per set met plaatje, zeldzaamheid,
-    type en prijs (`usd` = TCGPlayer-marktprijs, actueel; `eur` =
-    Cardmarket-trendprijs, loopt achter bij de bron).
-  - `data/meta.json`: moment van laatste update en eventueel mislukte sets.
-- `.github/workflows/deploy.yml` draait dit elke nacht (03:00 UTC) en zet de
-  website online. Handmatig starten: tabblad Actions op GitHub → "Run workflow".
-- Lokaal testen: `python scripts/fetch_cards.py sv1` (alleen set sv1).
+Drie scripts in `scripts/` (Python, geen extra pakketten nodig):
+- `update_catalog.py` — kaartgegevens van TCGdex (api.tcgdex.net) naar
+  `data/catalog/`. Niet elke nacht alles: nieuwe en recente sets wel, oudere
+  sets om de 30 dagen (een paar per nacht). Mislukt een set, dan wordt die de
+  volgende nacht opnieuw geprobeerd. TCG Pocket (digitaal spel) doet niet mee.
+- `update_prices.py` — het prijzenbestand van Cardmarket (alle Pokémon-
+  producten) naar een momentopname per dag: `data/prices/<datum>.json`
+  (trendprijs en trendprijs reverse holo, in euro's). Samen vormen die de
+  prijsgeschiedenis.
+- `build_site_data.py` — maakt zonder internet de bestanden die de website
+  laadt: `data/sets.json`, `data/cards/<set-id>.json`,
+  `data/history/<set-id>.json` (grafieken) en `data/meta.json`. Deze staan
+  niet in git; ze worden bij elke publicatie opnieuw gemaakt.
+
+`.github/workflows/deploy.yml` draait dit elke nacht (03:00 UTC) en zet de
+website online (alleen de websitebestanden, via de map `_site`). Handmatig
+starten: tabblad Actions op GitHub → "Run workflow". Als een bron niet
+bereikbaar was, gaat de site gewoon online met de laatst bekende gegevens en
+staat de run op "mislukt" (GitHub stuurt dan een mail).
+
+Lokaal testen: `python scripts/update_catalog.py 30th` (alleen die set),
+`python scripts/update_prices.py`, `python scripts/build_site_data.py`, en dan
+de map openen via een lokale webserver (`python -m http.server`).
 
 ## Gebruik
 Open het webadres hierboven in de browser op laptop of telefoon.

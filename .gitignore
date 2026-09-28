@@ -13,3 +13,10 @@ desktop.ini
 *.log
 node_modules/
 __pycache__/
+
+# Worden bij elke publicatie opnieuw gemaakt door scripts/build_site_data.py
+/data/sets.json
+/data/cards/
+/data/history/
+/data/meta.json
+/_site/

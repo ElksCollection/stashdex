@@ -54,7 +54,7 @@ body{padding:0}
 .mark-btn:hover .sdx-logo{transform:rotate(6deg) scale(1.06)}
 
 /* Kop van een set: titel + voortgang links, topkaart rechts */
-.sethead{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:24px;align-items:end}
+.sethead{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:24px;align-items:start}
 .sethead-solo{grid-template-columns:minmax(0,1fr)}
 .sethead-main{display:flex;flex-direction:column;gap:16px;min-width:0}
 .feat{position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:-6px}
@@ -180,3 +180,46 @@ button.lrow:hover{background:var(--bg)}
   .slim-brand{flex-wrap:wrap;justify-content:center;row-gap:4px}
   .slim-sub{width:100%;text-align:center}
 }
+
+/* ---------- Kaart zonder afbeelding ---------- */
+.no-art{display:grid;place-items:center;aspect-ratio:5/7;width:100%;box-sizing:border-box;padding:10px;background:repeating-linear-gradient(135deg,var(--bg) 0 10px,var(--paper) 10px 20px);color:var(--ink-soft);font-family:var(--font-display);font-weight:800;font-size:13px;text-align:center;line-height:1.2}
+.thumb .no-art{font-size:10px;padding:4px}
+
+/* ---------- Prijsgrafiek in het kaartdetail ---------- */
+.chart{display:flex;flex-direction:column;gap:10px;padding-top:4px}
+.chart-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.chart-head .kk-seg button{padding:6px 9px;font-size:12.5px}
+.chart-note{margin:0;font-size:12.5px;line-height:1.45;color:var(--ink-soft)}
+.chart-wrap{--chart:#0b2447;display:flex;flex-direction:column;gap:6px}
+.chart-up{--chart:#1b7a3a}
+.chart-down{--chart:var(--red)}
+.chart-stats{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:13px;color:var(--ink-soft)}
+.chart-tip b{font-family:var(--font-mono);font-size:17px;color:var(--ink)}
+.chart-change{font-family:var(--font-mono);font-weight:700;font-size:14px;color:var(--chart)}
+.chart-svg{width:100%;height:auto;display:block;touch-action:pan-y;cursor:crosshair;background:var(--bg);border-radius:var(--radius-12);box-shadow:var(--shadow-inset)}
+.chart-line{fill:none;stroke:var(--chart);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.chart-area{fill:var(--chart);opacity:.12}
+.chart-guide{stroke:var(--ink-soft);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+.chart-dot{fill:var(--paper);stroke:var(--chart);stroke-width:2.5;vector-effect:non-scaling-stroke}
+.chart-range{display:flex;justify-content:space-between;gap:4px 8px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-soft)}
+.chart-range span{white-space:nowrap}
+@media (max-width:520px){.chart-range{flex-wrap:wrap}.chart-range span:nth-child(2){order:3;width:100%;text-align:center}}
+
+/* ---------- Nummer 2 t/m 4 onder de voortgang (naast de topkaart) ---------- */
+.podium{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.mini{position:relative;display:flex;align-items:center;gap:12px;min-width:0;padding:10px 12px 10px 10px;text-align:left;background:var(--paper);border:2px solid var(--card-frame);border-radius:var(--radius-16,16px);box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--line),var(--shadow-lift);cursor:pointer;font:inherit;color:var(--ink);transition:transform .25s var(--kk-spring)}
+.mini:hover{transform:translateY(-3px) rotate(-1deg)}
+.mini:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.mini-place{position:absolute;top:-9px;left:-7px;z-index:1;font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--on-gold);background:linear-gradient(180deg,var(--sun),var(--gold-bright));padding:2px 7px;border-radius:999px;box-shadow:var(--shadow-press-gold)}
+.mini-art{flex:0 0 64px;border-radius:6px;overflow:hidden;border:2px solid var(--card-frame);transform:rotate(-3deg);box-shadow:0 6px 10px rgba(11,36,71,.25)}
+.mini-art img{display:block;width:100%;aspect-ratio:5/7;object-fit:cover;background:var(--line)}
+.mini-art .no-art{font-size:8px;padding:3px}
+.mini-info{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.mini-name{max-width:100%;font-family:var(--font-display);font-weight:800;font-size:15px;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.mini-val{font-weight:700;font-size:13px;color:var(--red)}
+/* Smallere laptop: kleinere kaartjes; naast de topkaart onder elkaar; zonder topkaart ernaast (telefoon/tablet) weer naast elkaar */
+@media (max-width:1500px){.mini{gap:9px;padding:9px 10px 9px 9px}.mini-art{flex-basis:50px}.mini-name{font-size:14px}}
+@media (max-width:1100px){.podium{grid-template-columns:minmax(0,1fr)}.mini-art{flex-basis:44px}}
+@media (max-width:900px){.podium{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.podium{grid-template-columns:minmax(0,1fr)}}
+.stepper-wrap > b{white-space:nowrap}

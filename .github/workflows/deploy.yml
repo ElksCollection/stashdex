@@ -1,12 +1,12 @@
-# Haalt elke nacht alle kaartdata op en zet de website online.
-# Bij een gewone wijziging in de code wordt de website alleen opnieuw online gezet.
+# Werkt elke nacht de kaartcatalogus (TCGdex) en de prijzen (Cardmarket) bij en zet de website online.
+# Bij een gewone wijziging in de code wordt de website alleen opnieuw opgebouwd en online gezet.
 name: Kaartdata ophalen en website publiceren
 
 on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 3 * * *"   # elke nacht om 03:00 UTC (05:00 Nederlandse zomertijd)
+    - cron: "0 3 * * *"   # elke nacht om 03:00 UTC (05:00 Nederlandse zomertijd); Cardmarket vernieuwt rond 00:45 UTC
   workflow_dispatch:      # handmatig starten via GitHub
 
 permissions:
@@ -29,37 +29,59 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Python klaarzetten
-        if: github.event_name != 'push'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Kaartdata ophalen
+      # Een storing bij één bron houdt de rest niet tegen; de site gebruikt dan de laatst bekende gegevens
+      - name: Kaartcatalogus bijwerken (TCGdex)
+        id: catalog
         if: github.event_name != 'push'
-        env:
-          POKEMONTCG_API_KEY: ${{ secrets.POKEMONTCG_API_KEY }}
-        run: python scripts/fetch_cards.py
+        continue-on-error: true
+        run: python scripts/update_catalog.py
 
-      - name: Nieuwe data opslaan in de codemap
+      - name: Prijzen van vandaag ophalen (Cardmarket)
+        id: prices
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: python scripts/update_prices.py
+
+      - name: Nieuwe gegevens opslaan in de codemap
         if: github.event_name != 'push'
         run: |
           git config user.name "stashdex-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data
+          git add data/catalog data/prices
           if git diff --cached --quiet; then
             echo "Geen wijzigingen in de data."
           else
-            git commit -m "Kaartdata bijgewerkt ($(date -u +%Y-%m-%d))"
+            git commit -m "Kaartdata en prijzen bijgewerkt ($(date -u +%Y-%m-%d))"
             # Eerst eventuele nieuwere code ophalen, zodat opslaan nooit botst
             git pull --rebase
             git push
           fi
 
+      - name: Site-data opbouwen (kaarten, prijzen, geschiedenis)
+        run: python scripts/build_site_data.py
+
+      # Alleen de bestanden die de website nodig heeft; catalogus, momentopnames en scripts blijven erbuiten
+      - name: Websitebestanden klaarzetten
+        run: |
+          rsync -a --exclude .git --exclude .github --exclude scripts --exclude supabase \
+            --exclude data/catalog --exclude data/prices --exclude _site ./ _site/
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # Website staat online, maar laat de run als mislukt zien zodat GitHub een mail stuurt
+      - name: Melding als een bron niet bereikbaar was
+        if: steps.catalog.outcome == 'failure' || steps.prices.outcome == 'failure'
+        run: |
+          echo "Catalogus: ${{ steps.catalog.outcome }} · Prijzen: ${{ steps.prices.outcome }}"
+          exit 1

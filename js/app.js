@@ -3,11 +3,12 @@ import { supabase, safe } from "./supabase-client.js";
 import { startAuth } from "./auth.js";
 import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES } from "./rarity.js";
 
-const EUR_PER_USD = 0.87; // vaste koers van 22-09-2026; prijzen in de data zijn in dollars (TCGPlayer)
+const EUR_PER_USD = 0.87; // vaste koers van 22-09-2026; prijzen in de data zijn in euro's (Cardmarket), dollars worden omgerekend
 const PAGE = 20; // aantal kaarten per "Toon meer"
-// Subsets die bij een hoofdset horen, en de letters voor hun kaartnummers (als die alleen cijfers zijn)
-const SUBSET_NAME = /^(.+?):? (Classic Collection|Trainer Gallery|Galarian Gallery|Shiny Vault)$/;
+// Letters voor de kaartnummers van een subset (als die alleen cijfers zijn)
 const PART_CODES = { "Classic Collection": "CC" };
+// Periodes voor de prijsgrafiek: label en aantal dagen
+const PERIODS = [["7D", 7], ["1M", 30], ["3M", 91], ["6M", 182], ["1J", 365], ["Alles", Infinity]];
 
 // ---------- Kleine hulpjes ----------
 
@@ -73,22 +74,28 @@ const S = {
   sets: [], setById: {}, series: [], setsError: null,
   parentOf: {}, subsets: {},          // subsets (bv. Classic Collection) per hoofdset
   cards: {}, cardsError: {},          // per set-id: de kaarten uit data/cards/<id>.json
+  history: {},                        // per set-id: belofte met de prijsgeschiedenis uit data/history/<id>.json
   cardById: {},                       // alle geladen kaarten op kaart-id (voor de kaartwaaier)
   owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count, raw_value_usd }
   nav: "collection",
-  setId: pref.get("set", "me55"),
+  setId: pref.get("set", "30th"),
   view: pref.get("view", "cards"),
   sort: pref.get("sort", "number"),
   cur: pref.get("cur", "EUR"),
+  period: pref.get("period", "1M"),
   open: pref.get("open", {}),
   q: "", filterOpen: false, own: "all", typeF: "all", shown: PAGE,
 };
 
-const setIdOf = (cardId) => cardId.slice(0, cardId.indexOf("-"));
+// Kaart-id = "<set-id>-<nummer>"; set-id's kunnen zelf een streepje bevatten (bv. 30th-c), nummers niet
+const setIdOf = (cardId) => cardId.slice(0, cardId.lastIndexOf("-"));
 const parentIdOf = (setId) => S.parentOf[setId] || setId;
 const countOf = (cardId) => S.owned[cardId]?.count || 0;
-// Eigen waarde gaat voor; anders de marktprijs uit de nachtelijke data
-const valueUsd = (card) => S.owned[card.id]?.raw_value_usd ?? card.usd ?? null;
+// Eigen waarde gaat voor (opgeslagen in dollars); anders de marktprijs (euro's) uit de nachtelijke data
+function valueEur(card) {
+  const own = S.owned[card.id]?.raw_value_usd;
+  return own != null ? own * EUR_PER_USD : card.eur ?? null;
+}
 // Totaal van een hoofdset inclusief zijn subsets
 const setTotal = (set) => S.cards[set.id]?.length || (S.subsets[set.id] || []).reduce((n, s) => n + (s.total || 0), set.total || 0);
 // Kaartnummer; Classic Collection krijgt "CC" ervoor, zodat #004 en #CC004 niet door elkaar lopen
@@ -97,9 +104,9 @@ const numTxt = (card) => {
   return "#" + (card.partCode && /^\d/.test(n) ? card.partCode : "") + n;
 };
 
-function money(usd) {
-  if (usd == null) return null;
-  const n = S.cur === "EUR" ? usd * EUR_PER_USD : usd;
+function money(eur) {
+  if (eur == null) return null;
+  const n = S.cur === "EUR" ? eur : eur / EUR_PER_USD;
   const big = n >= 1000;
   const digits = big ? 0 : 2;
   return (S.cur === "EUR" ? "€" : "$") + " " + n.toLocaleString("nl-NL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -125,17 +132,14 @@ async function loadSets() {
     // Nieuwste sets eerst; series in de volgorde van hun nieuwste set
     const sets = (await res.json()).sort((a, b) => (b.releaseDate || "").localeCompare(a.releaseDate || ""));
 
-    // Subsets horen bij hun hoofdset, herkend aan de naam: "<hoofdset>[:] Classic Collection" enz.
-    const byName = new Map(sets.map((s) => [s.series + "|" + s.name, s]));
+    // Subsets (bv. Classic Collection) horen bij hun hoofdset; die koppeling staat al in de data
+    const ids = new Set(sets.map((s) => s.id));
     S.parentOf = {};
     S.subsets = {};
     for (const s of sets) {
-      const m = s.name.match(SUBSET_NAME);
-      const parent = m && byName.get(s.series + "|" + m[1]);
-      if (!parent) continue;
-      s.part = m[2];
-      S.parentOf[s.id] = parent.id;
-      (S.subsets[parent.id] ||= []).push(s);
+      if (!s.parent || !ids.has(s.parent)) continue;
+      S.parentOf[s.id] = s.parent;
+      (S.subsets[s.parent] ||= []).push(s);
     }
 
     const bySeries = new Map();
@@ -268,20 +272,38 @@ function withHeadings(cards, heading, node) {
   return out;
 }
 
+// Plaatje van een kaart; sommige oude kaarten hebben er (nog) geen, die krijgen een nette lege kaart
+function cardImg(card, { large = false, lazy = true } = {}) {
+  const src = (large && card.imgLarge) || card.img;
+  if (!src) return el("span", { class: "no-art", role: "img", "aria-label": `${card.name} (geen afbeelding)` }, el("span", {}, card.name));
+  return el("img", { src, alt: large ? card.name : "", loading: lazy ? "lazy" : null });
+}
+
 // Kaarttegel: plaatje, type, naam, zeldzaamheid en Nr · Aantal · Waarde
 // foil = glans altijd aan (topkaart), anders alleen vanaf Illustration Rare
 function cardTile(card, { foil = false } = {}) {
   const n = countOf(card.id), t = tier(card.rarity), missing = !n;
   const cls = ["kk-card", "kk-type-" + typeKey(card), t?.band && "kk-holo-" + t.band, !missing && (foil || (t && t.rank >= 5)) && "kk-card-foil", missing && "kk-card-missing"].filter(Boolean).join(" ");
   return el("button", { type: "button", class: cls, style: `--kk-holo-max:${holoLevel(card.rarity)}`, "aria-label": card.name + (missing ? " (nog niet in bezit, klik om toe te voegen)" : ""), onclick: () => openModal(card) },
-    el("div", { class: "kk-card-art" }, el("img", { src: card.img, alt: "", loading: "lazy" })),
+    el("div", { class: "kk-card-art" }, cardImg(card)),
     el("span", { class: "kk-type-tag" }, typeName(card)),
     missing ? el("span", { class: "kk-missing-tag" }, "Nog niet") : null,
     el("div", { class: "kk-card-info" },
       el("div", { class: "kk-card-name", title: card.name }, card.name),
       el("div", { class: "kk-card-rar" }, chip(card.rarity)),
       el("div", { class: "kk-card-facts" },
-        fact("Nr", numTxt(card)), fact("Aantal", n ? n + "×" : null), fact("Waarde", n ? money(valueUsd(card)) : null, "kk-fact-value"))));
+        fact("Nr", numTxt(card)), fact("Aantal", n ? n + "×" : null), fact("Waarde", n ? money(valueEur(card)) : null, "kk-fact-value"))));
+}
+
+// Kleine liggende kaart voor nummer 2 t/m 4 naast de topkaart: plaatje, naam, zeldzaamheid, waarde
+function miniCard(card, place) {
+  return el("button", { type: "button", role: "listitem", class: `mini kk-type-${typeKey(card)}`, "aria-label": `Nummer ${place}: ${card.name}`, onclick: () => openModal(card) },
+    el("span", { class: "mini-place" }, "#" + place),
+    el("span", { class: "mini-art" }, cardImg(card)),
+    el("span", { class: "mini-info" },
+      el("b", { class: "mini-name", title: card.name }, card.name),
+      chip(card.rarity),
+      el("span", { class: "mini-val mono" }, money(valueEur(card)) ?? "—")));
 }
 
 // ---------- Opbouw van het scherm ----------
@@ -357,7 +379,7 @@ function render() {
 // Kaartwaaier: de 6 waardevolste kaarten uit de collectie (1–3 links, 4–6 rechts)
 function renderFan() {
   const top = Object.keys(S.owned).map((id) => S.cardById[id]).filter(Boolean)
-    .sort((a, b) => (valueUsd(b) ?? -1) - (valueUsd(a) ?? -1)).slice(0, 6);
+    .sort((a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1)).slice(0, 6);
   // Alleen opnieuw opbouwen als de kaarten veranderd zijn, zodat de waaier niet knippert
   const key = top.map((c) => c.id).join(",");
   if (key === ui.fanKey) return;
@@ -365,7 +387,7 @@ function renderFan() {
   const fanCard = (c, i) => {
     const label = `${c.name} · ${S.setById[parentIdOf(c.setId)]?.name || ""}`;
     return el("button", { type: "button", class: `fan-card f${i} kk-type-${typeKey(c)}`, title: label, "aria-label": label, onclick: () => openModal(c) },
-      el("img", { src: c.img, alt: "" }));
+      cardImg(c, { lazy: false }));
   };
   ui.fanLeft.replaceChildren(...top.slice(0, 3).map(fanCard));
   ui.fanRight.replaceChildren(...top.slice(3, 6).map(fanCard));
@@ -424,13 +446,16 @@ function renderMain(bySet) {
   const parts = (S.subsets[set.id] || []).map((s) => s.part);
   const cards = S.cards[set.id];
 
-  // Kop van de set: titel + voortgang links, rechts de topkaart (zeldzaamste in bezit, dan hoogste waarde)
-  const feat = (cards || []).filter((c) => countOf(c.id))
-    .sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || (valueUsd(b) ?? -1) - (valueUsd(a) ?? -1))[0];
+  // Kop van de set: titel + voortgang + nummer 2 t/m 4 links, rechts de topkaart (zeldzaamste in bezit, dan hoogste waarde)
+  const ranked = (cards || []).filter((c) => countOf(c.id))
+    .sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || (valueEur(b) ?? -1) - (valueEur(a) ?? -1));
+  const feat = ranked[0], podium = ranked.slice(1, 4);
   out.push(el("div", { class: "sethead" + (feat ? "" : " sethead-solo") },
     el("div", { class: "sethead-main" },
       pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
-      setProgress(set.name, bySet[set.id] || 0, total)),
+      setProgress(set.name, bySet[set.id] || 0, total),
+      podium.length ? el("div", { class: "podium", role: "list", "aria-label": "Nummer 2 tot en met 4 uit je collectie van deze set" },
+        podium.map((c, i) => miniCard(c, i + 2))) : null),
     feat ? el("div", { class: "feat" },
       el("span", { class: "feat-badge" }, "Topkaart van deze set"),
       el("div", { class: "feat-card" }, cardTile(feat, { foil: true }))) : null));
@@ -464,7 +489,7 @@ function renderMain(bySet) {
     if (S.typeF !== "all" && typeName(c) !== S.typeF) return false;
     return true;
   });
-  const byValue = (c) => valueUsd(c) ?? -1;
+  const byValue = (c) => valueEur(c) ?? -1;
   const sorters = {
     number: (a, b) => a.i - b.i,
     name: (a, b) => a.name.localeCompare(b.name) || a.i - b.i,
@@ -507,12 +532,12 @@ function renderMain(bySet) {
           el("span", { class: "col-type" }, el("i", { class: `tdot kk-type-${typeKey(c)}` }), typeName(c)),
           el("span", { class: "col-rar" }, chip(c.rarity)),
           el("span", { class: "mono" }, n ? n + "×" : "—"),
-          el("span", { class: "mono lval" }, money(valueUsd(c)) ?? "—"));
+          el("span", { class: "mono lval" }, money(valueEur(c)) ?? "—"));
       })));
   } else if (S.view === "grid") {
     out.push(el("div", { class: "raster" }, withHeadings(shown, partTitle, (c) =>
       el("button", { type: "button", class: `thumb kk-type-${typeKey(c)}` + (countOf(c.id) ? "" : " tmiss"), "aria-label": c.name, title: c.name, onclick: () => openModal(c) },
-        el("img", { src: c.img, alt: "", loading: "lazy" }), el("span", { class: "mono" }, numTxt(c))))));
+        cardImg(c), el("span", { class: "mono" }, numTxt(c))))));
   } else {
     out.push(el("div", { class: "kk-grid" }, withHeadings(shown, partTitle, cardTile)));
   }
@@ -590,7 +615,7 @@ function openModal(card) {
     el("div", { class: "kk-modal", role: "dialog", "aria-modal": "true", "aria-label": card.name },
       closeBtn,
       el("div", { class: "kk-modal-art" + (t?.band ? " kk-holo-" + t.band : ""), style: `--kk-holo-max:${card.rarity ? holoLevel(card.rarity) : 0.55}` },
-        el("img", { src: card.imgLarge || card.img, alt: card.name })),
+        cardImg(card, { large: true, lazy: false })),
       el("h2", {}, card.name),
       el("div", { class: "kk-modal-sub" }, `${where} · ${card.rarity || "—"}`),
       el("div", { class: "kk-fieldgrid" },
@@ -601,12 +626,106 @@ function openModal(card) {
             countEl,
             el("button", { type: "button", "aria-label": "Eén meer", onclick: () => setCount(count + 1) }, "+")),
           el("span", { class: "flabel", style: "margin-left:auto" }, "Waarde"),
-          el("b", { class: "mono", style: "color:var(--red)" }, money(valueUsd(card)) ?? "—")),
+          el("b", { class: "mono", style: "color:var(--red)" }, money(valueEur(card)) ?? "—")),
+        el("div", { class: "kk-full" }, priceChart(card)),
         actions)));
 
   modal = { scrim, returnFocus: document.activeElement };
   document.body.append(scrim);
   closeBtn.focus();
+}
+
+// ---------- Prijsgrafiek in het kaartdetail ----------
+
+// Prijsgeschiedenis van een set, één keer per set opgehaald
+function loadHistory(setId) {
+  return (S.history[setId] ||= fetch(`data/history/${encodeURIComponent(setId)}.json`, { cache: "no-cache" })
+    .then((res) => (res.status === 404 ? null : res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+    .catch((err) => { delete S.history[setId]; throw err; }));
+}
+
+const dayLabel = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+
+// Grafiek met de Cardmarket-trendprijs; periode kiezen met 7D · 1M · 3M · 6M · 1J · Alles
+function priceChart(card) {
+  const box = el("div", { class: "chart" }, el("p", { class: "chart-note" }, "Prijsverloop laden…"));
+  loadHistory(card.setId).then((hist) => {
+    const all = [];
+    const series = hist?.prices?.[card.id] || [];
+    (hist?.dates || []).forEach((d, i) => { if (series[i] != null) all.push({ d, v: series[i] }); });
+    const draw = () => {
+      const days = Object.fromEntries(PERIODS)[S.period] ?? 30;
+      const last = all.at(-1);
+      const from = last ? new Date(Date.parse(last.d) - days * 864e5).toISOString().slice(0, 10) : "";
+      const pts = all.filter((p) => days === Infinity || p.d >= from);
+      const head = el("div", { class: "chart-head" },
+        el("span", { class: "flabel" }, "Prijsverloop"),
+        segmented("Periode", S.period, PERIODS.map(([label]) => ({ value: label, label })), (v) => {
+          S.period = v; pref.set("period", v); draw();
+        }));
+      if (pts.length < 2) {
+        const since = all[0] ? ` sinds ${dayLabel(all[0].d)}` : "";
+        box.replaceChildren(head, el("p", { class: "chart-note" },
+          all.length ? `Stashdex houdt de prijs${since} elke nacht bij. Na een paar dagen verschijnt hier de grafiek.`
+            : "Voor deze kaart is (nog) geen marktprijs bekend."));
+        return;
+      }
+      box.replaceChildren(head, chartSvg(pts));
+    };
+    draw();
+  }).catch(() => box.replaceChildren(el("p", { class: "chart-note" }, "Het prijsverloop kon niet geladen worden.")));
+  return box;
+}
+
+// Tekent de lijn met een zachte vulling; muis of vinger erover toont prijs en datum
+function chartSvg(pts) {
+  const W = 400, H = 150, P = 6;
+  const vals = pts.map((p) => p.v);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || hi || 1;
+  const t0 = Date.parse(pts[0].d), t1 = Date.parse(pts.at(-1).d);
+  const x = (p) => P + ((Date.parse(p.d) - t0) / (t1 - t0 || 1)) * (W - 2 * P);
+  const y = (v) => P + (1 - (v - lo) / span) * (H - 2 * P);
+  const first = vals[0], lastV = vals.at(-1);
+  const change = first ? ((lastV - first) / first) * 100 : 0;
+  const trend = change > 0.05 ? "up" : change < -0.05 ? "down" : "flat";
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  const ns = "http://www.w3.org/2000/svg";
+  const svgEl = (tag, attrs) => {
+    const n = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart-svg", role: "img",
+    "aria-label": `Prijsverloop van ${money(first)} naar ${money(lastV)}` });
+  svg.append(svgEl("path", { d: `${line}L${x(pts.at(-1)).toFixed(1)},${H}L${x(pts[0]).toFixed(1)},${H}Z`, class: "chart-area" }),
+    svgEl("path", { d: line, class: "chart-line" }));
+  const guide = svgEl("line", { y1: 0, y2: H, class: "chart-guide" });
+  const dot = svgEl("circle", { r: 4.5, class: "chart-dot" });
+  svg.append(guide, dot);
+
+  const tip = el("div", { class: "chart-tip" });
+  const show = (p) => {
+    const px = x(p), py = y(p.v);
+    guide.setAttribute("x1", px); guide.setAttribute("x2", px);
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py);
+    tip.replaceChildren(el("b", {}, money(p.v)), " ", dayLabel(p.d));
+  };
+  svg.addEventListener("pointermove", (e) => {
+    const r = svg.getBoundingClientRect();
+    const t = t0 + ((e.clientX - r.left) / r.width * W - P) / (W - 2 * P) * (t1 - t0);
+    show(pts.reduce((a, b) => (Math.abs(Date.parse(b.d) - t) < Math.abs(Date.parse(a.d) - t) ? b : a)));
+  });
+  svg.addEventListener("pointerleave", () => show(pts.at(-1)));
+  show(pts.at(-1));
+
+  const sign = change > 0 ? "+" : "";
+  return el("div", { class: `chart-wrap chart-${trend}` },
+    el("div", { class: "chart-stats" },
+      tip,
+      el("span", { class: "chart-change" }, `${sign}${change.toLocaleString("nl-NL", { maximumFractionDigits: 1 })}%`)),
+    svg,
+    el("div", { class: "chart-range" }, el("span", {}, dayLabel(pts[0].d)), el("span", {}, `laag ${money(lo)} · hoog ${money(hi)}`), el("span", {}, dayLabel(pts.at(-1).d))),
+    el("p", { class: "chart-note" }, "Cardmarket-trendprijs, elke nacht bijgewerkt."));
 }
 
 function closeModal() {
@@ -658,6 +777,8 @@ async function enter(session) {
   render();
   await Promise.all([loadSets(), loadOwned()]);
   if (S.userId !== session.user.id) return; // intussen uitgelogd
+  // Kaarten met een id die niet (meer) bij een set hoort (bv. oude pokemontcg-id's) niet meetellen
+  if (S.sets.length) for (const id of Object.keys(S.owned)) if (!S.setById[setIdOf(id)]) delete S.owned[id];
   render();
   loadCards(S.setId);
   // Ook de sets van je kaarten ophalen, voor de kaartwaaier in de header
