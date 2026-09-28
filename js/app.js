@@ -83,6 +83,7 @@ const S = {
   sort: pref.get("sort", "number"),
   cur: pref.get("cur", "EUR"),
   period: pref.get("period", "1M"),
+  topBy: pref.get("topBy", "rarity"),  // top 4 van de set: op zeldzaamheid (dan waarde) of alleen op waarde
   open: pref.get("open", {}),
   q: "", filterOpen: false, own: "all", typeF: "all", shown: PAGE,
 };
@@ -446,14 +447,22 @@ function renderMain(bySet) {
   const parts = (S.subsets[set.id] || []).map((s) => s.part);
   const cards = S.cards[set.id];
 
-  // Kop van de set: titel + voortgang + nummer 2 t/m 4 links, rechts de topkaart (zeldzaamste in bezit, dan hoogste waarde)
+  // Kop van de set: titel + voortgang + nummer 2 t/m 4 links, rechts de topkaart.
+  // Volgorde naar keuze: zeldzaamste eerst (bij gelijke zeldzaamheid de hoogste waarde), of alleen de hoogste waarde
+  const byRarity = (a, b) => rarityRank(b.rarity) - rarityRank(a.rarity);
+  const byWorth = (a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1);
   const ranked = (cards || []).filter((c) => countOf(c.id))
-    .sort((a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || (valueEur(b) ?? -1) - (valueEur(a) ?? -1));
+    .sort((a, b) => (S.topBy === "value" ? byWorth(a, b) || byRarity(a, b) : byRarity(a, b) || byWorth(a, b)) || a.i - b.i);
   const feat = ranked[0], podium = ranked.slice(1, 4);
   out.push(el("div", { class: "sethead" + (feat ? "" : " sethead-solo") },
     el("div", { class: "sethead-main" },
       pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
       setProgress(set.name, bySet[set.id] || 0, total),
+      feat ? el("div", { class: "podium-head" },
+        el("span", { class: "podium-label" }, "Top 4 op"),
+        segmented("Top 4 op", S.topBy, [{ value: "rarity", label: "Zeldzaamheid" }, { value: "value", label: "Waarde" }], (v) => {
+          S.topBy = v; pref.set("topBy", v); render();
+        })) : null,
       podium.length ? el("div", { class: "podium", role: "list", "aria-label": "Nummer 2 tot en met 4 uit je collectie van deze set" },
         podium.map((c, i) => miniCard(c, i + 2))) : null),
     feat ? el("div", { class: "feat" },

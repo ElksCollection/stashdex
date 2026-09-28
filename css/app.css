@@ -223,3 +223,6 @@ button.lrow:hover{background:var(--bg)}
 @media (max-width:900px){.podium{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:560px){.podium{grid-template-columns:minmax(0,1fr)}}
 .stepper-wrap > b{white-space:nowrap}
+.podium-head{display:flex;align-items:center;gap:10px;margin-bottom:-4px}
+.podium-label{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--on-page)}
+.podium-head .kk-seg button{padding:6px 11px;font-size:13px}
