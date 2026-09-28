@@ -31,7 +31,7 @@ VARIANT_ORDER = [
 ]
 
 
-def get_json(path, params, tries=5):
+def get_json(path, params, tries=6):
     """Vraagt een API-pagina op, met herhaalpogingen omdat de bron soms hapert."""
     url = f"{API}/{path}?{urllib.parse.urlencode(params)}"
     headers = {"User-Agent": "stashdex-fetcher"}
@@ -44,7 +44,10 @@ def get_json(path, params, tries=5):
             with urllib.request.urlopen(req, timeout=90) as resp:
                 return json.load(resp)
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as err:
-            wait = 5 * attempt
+            if attempt == tries:
+                break
+            # Steeds langer wachten (10, 20, 40, 60, 60 s) zodat een haperende bron kan herstellen
+            wait = min(10 * 2 ** (attempt - 1), 60)
             print(f"  poging {attempt}/{tries} mislukt ({err}), opnieuw over {wait}s")
             time.sleep(wait)
     raise RuntimeError(f"ophalen mislukt: {url}")
@@ -105,9 +108,27 @@ def write_json(path, data):
     return True
 
 
-def main(only_sets):
+def fetch_set_cards(set_id):
+    """Haalt alle kaarten van één set op en schrijft ze weg; geeft True als het bestand veranderde."""
+    cards = get_all("cards", {
+        "q": f"set.id:{set_id}",
+        "select": "id,name,number,rarity,types,supertype,images,tcgplayer,cardmarket",
+    })
+    cards = sorted((compact_card(c) for c in cards), key=lambda c: number_key(c["number"]))
+    return write_json(CARDS_DIR / f"{set_id}.json", cards)
+
+
+def load_set_list():
+    """Haalt de setlijst op; lukt dat niet, dan de bestaande lijst van de vorige keer gebruiken."""
     print("Sets ophalen ...")
-    sets = get_all("sets", {"orderBy": "releaseDate"})
+    try:
+        sets = get_all("sets", {"orderBy": "releaseDate"})
+    except RuntimeError as err:
+        old = DATA / "sets.json"
+        if not old.exists():
+            raise
+        print(f"  Setlijst ophalen mislukt ({err}), bestaande lijst wordt gebruikt")
+        return json.loads(old.read_text(encoding="utf-8"))
     set_list = [
         {
             "id": s["id"],
@@ -122,6 +143,11 @@ def main(only_sets):
         for s in sets
     ]
     write_json(DATA / "sets.json", set_list)
+    return set_list
+
+
+def main(only_sets):
+    set_list = load_set_list()
     print(f"{len(set_list)} sets gevonden")
 
     targets = [s for s in set_list if not only_sets or s["id"] in only_sets]
@@ -129,17 +155,25 @@ def main(only_sets):
     for i, s in enumerate(targets, 1):
         print(f"[{i}/{len(targets)}] {s['id']} {s['name']}")
         try:
-            cards = get_all("cards", {
-                "q": f"set.id:{s['id']}",
-                "select": "id,name,number,rarity,types,supertype,images,tcgplayer,cardmarket",
-            })
+            changed += fetch_set_cards(s["id"])
         except RuntimeError as err:
             # Bestaand bestand blijft staan, zodat de website niets kwijtraakt
-            print(f"  OVERGESLAGEN: {err}")
+            print(f"  OVERGESLAGEN (later nog een keer): {err}")
             failed.append(s["id"])
-            continue
-        cards = sorted((compact_card(c) for c in cards), key=lambda c: number_key(c["number"]))
-        changed += write_json(CARDS_DIR / f"{s['id']}.json", cards)
+
+    # Tweede ronde voor de overgeslagen sets, na een pauze zodat de bron kan herstellen
+    if failed:
+        print(f"Tweede ronde voor {len(failed)} overgeslagen sets over 120s ...")
+        time.sleep(120)
+        still_failed = []
+        for set_id in failed:
+            print(f"[herkansing] {set_id}")
+            try:
+                changed += fetch_set_cards(set_id)
+            except RuntimeError as err:
+                print(f"  OVERGESLAGEN: {err}")
+                still_failed.append(set_id)
+        failed = still_failed
 
     if not only_sets:
         write_json(DATA / "meta.json", {
@@ -147,8 +181,8 @@ def main(only_sets):
             "failedSets": failed,
         })
     print(f"Klaar: {changed} setbestanden gewijzigd, {len(failed)} mislukt {failed or ''}")
-    # Alleen falen als (bijna) alles misging, zodat een haperende set de rest niet tegenhoudt
-    if targets and len(failed) > len(targets) // 2:
+    # Alleen falen als niets lukte; gedeeltelijk gelukte data wordt wél opgeslagen en online gezet
+    if targets and len(failed) == len(targets):
         sys.exit(1)
 
 
