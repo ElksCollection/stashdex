@@ -281,11 +281,11 @@ function cardImg(card, { large = false, lazy = true } = {}) {
 }
 
 // Kaarttegel: plaatje, type, naam, zeldzaamheid en Nr · Aantal · Waarde
-// foil = glans altijd aan (topkaart), anders alleen vanaf Illustration Rare
-function cardTile(card, { foil = false } = {}) {
+// foil = glans altijd aan (topkaart), anders alleen vanaf Illustration Rare; holoMin = minimale glans (topkaart)
+function cardTile(card, { foil = false, holoMin = 0 } = {}) {
   const n = countOf(card.id), t = tier(card.rarity), missing = !n;
   const cls = ["kk-card", "kk-type-" + typeKey(card), t?.band && "kk-holo-" + t.band, !missing && (foil || (t && t.rank >= 5)) && "kk-card-foil", missing && "kk-card-missing"].filter(Boolean).join(" ");
-  return el("button", { type: "button", class: cls, style: `--kk-holo-max:${holoLevel(card.rarity)}`, "aria-label": card.name + (missing ? " (nog niet in bezit, klik om toe te voegen)" : ""), onclick: () => openModal(card) },
+  return el("button", { type: "button", class: cls, style: `--kk-holo-max:${Math.max(holoLevel(card.rarity), holoMin)}`, "aria-label": card.name + (missing ? " (nog niet in bezit, klik om toe te voegen)" : ""), onclick: () => openModal(card) },
     el("div", { class: "kk-card-art" }, cardImg(card)),
     el("span", { class: "kk-type-tag" }, typeName(card)),
     missing ? el("span", { class: "kk-missing-tag" }, "Nog niet") : null,
@@ -467,7 +467,7 @@ function renderMain(bySet) {
         podium.map((c, i) => miniCard(c, i + 2))) : null),
     feat ? el("div", { class: "feat" },
       el("span", { class: "feat-badge" }, "Topkaart van deze set"),
-      el("div", { class: "feat-card" }, cardTile(feat, { foil: true }))) : null));
+      el("div", { class: "feat-card" }, cardTile(feat, { foil: true, holoMin: 0.7 }))) : null));
 
   if (!cards) {
     out.push(S.cardsError[set.id] ? emptyState("Er ging iets mis", S.cardsError[set.id]) : el("p", { class: "loading" }, "Kaarten laden…"));

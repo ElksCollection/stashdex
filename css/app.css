@@ -226,3 +226,13 @@ button.lrow:hover{background:var(--bg)}
 .podium-head{display:flex;align-items:center;gap:10px;margin-bottom:-4px}
 .podium-label{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--on-page)}
 .podium-head .kk-seg button{padding:6px 11px;font-size:13px}
+
+/* Nummer 1 en 2 t/m 4: altijd een rustige holo-schittering, ook bij gewone kaarten (nummer 1 het sterkst) */
+.feat-card .kk-card-art::after{opacity:calc(var(--kk-holo-max,.7) * .75);animation:kk-holoshift 7s ease-in-out infinite}
+.feat-card .kk-card:hover .kk-card-art::after{animation:none}
+.feat-card .kk-card{box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4px var(--line),var(--shadow-card),0 0 22px rgba(255,203,5,.35)}
+.mini-art{position:relative}
+.mini-art::after{content:"";position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;opacity:.4;background:linear-gradient(115deg,transparent 20%,var(--holo-1) 36%,var(--holo-2) 48%,var(--holo-3) 60%,transparent 76%);background-size:250% 250%;animation:kk-holoshift 9s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.feat-card .kk-card-art::after,.mini-art::after{animation:none}}
+/* Topkaart is smaller dan een gewone tegel: waarde iets kleiner zodat ook € 158,15 past */
+.feat-card .kk-fact b{font-size:11px;letter-spacing:-.5px}
