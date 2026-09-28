@@ -8,6 +8,8 @@ const PAGE = 20; // aantal kaarten per "Toon meer"
 // Letters voor de kaartnummers van een subset (als die alleen cijfers zijn)
 const PART_CODES = { "Classic Collection": "CC" };
 // Periodes voor de prijsgrafiek: label en aantal dagen
+// Id van de map "Alle kaarten" (je hele collectie over alle sets); geen echte set
+const ALL = "__alle";
 const PERIODS = [["7D", 7], ["1M", 30], ["3M", 91], ["6M", 182], ["1J", 365], ["Alles", Infinity]];
 
 // ---------- Kleine hulpjes ----------
@@ -151,8 +153,8 @@ async function loadSets() {
     S.sets = sets;
     S.setById = Object.fromEntries(sets.map((s) => [s.id, s]));
     S.series = [...bySeries].map(([name, list]) => ({ name, sets: list }));
-    S.setId = parentIdOf(S.setId);
-    if (!S.setById[S.setId]) S.setId = S.series[0]?.sets[0]?.id;
+    if (S.setId !== ALL) S.setId = parentIdOf(S.setId);
+    if (S.setId !== ALL && !S.setById[S.setId]) S.setId = S.series[0]?.sets[0]?.id;
   } catch (err) {
     S.setsError = `De lijst met sets kon niet geladen worden (${err.message}).`;
   }
@@ -161,11 +163,34 @@ async function loadSets() {
 // Kaarten van een set ophalen; een set die al onderweg is wordt niet dubbel opgehaald
 const loading = {};
 function loadCards(setId) {
+  if (setId === ALL) return loadOwnedSets();
   if (!setId || S.cards[setId]) return Promise.resolve();
   return (loading[setId] ||= fetchCards(setId).finally(() => {
     delete loading[setId];
     render();
   }));
+}
+
+// Sets (hoofdsets) waar je kaarten van hebt
+const ownedSetIds = () => [...new Set(Object.keys(S.owned).map((id) => parentIdOf(setIdOf(id))))].filter((id) => S.setById[id]);
+
+// Kaarten van al je sets ophalen (voor de kaartwaaier en de map "Alle kaarten")
+function loadOwnedSets() {
+  return Promise.all(ownedSetIds().map((id) => loadCards(id)));
+}
+
+// Je hele collectie over alle sets, nieuwste set eerst; null zolang er nog sets laden
+function collectionCards() {
+  const ids = new Set(ownedSetIds());
+  if ([...ids].some((id) => !S.cards[id] && !S.cardsError[id])) return null;
+  const out = [];
+  for (const s of S.sets) {
+    if (!ids.has(s.id)) continue;
+    for (const c of S.cards[s.id] || []) {
+      if (countOf(c.id)) out.push({ ...c, i: out.length, group: c.part ? `${s.name} · ${c.part}` : s.name });
+    }
+  }
+  return out;
 }
 
 async function fetchCards(setId) {
@@ -228,6 +253,18 @@ function setProgress(name, owned, total) {
       el("div", { class: "kk-progress-fill", style: `width:${pct}%` })));
 }
 
+// Samenvatting bovenaan "Alle kaarten": aantal kaarten en sets, exemplaren en totale waarde
+function collectionSummary(cards) {
+  const list = cards || [];
+  const copies = list.reduce((n, c) => n + countOf(c.id), 0);
+  const worth = list.reduce((sum, c) => sum + (valueEur(c) ?? 0) * countOf(c.id), 0);
+  const sets = new Set(list.map((c) => parentIdOf(c.setId))).size;
+  return el("div", { class: "kk-progress coll-sum", role: "group", "aria-label": "Je collectie in het kort" },
+    el("div", { class: "kk-progress-name" }, "Mijn collectie",
+      el("small", {}, cards ? `${list.length} kaarten · ${copies} exemplaren · ${sets} ${sets === 1 ? "set" : "sets"}` : "laden…")),
+    el("div", { class: "kk-progress-count coll-worth" }, el("small", {}, "Waarde"), el("b", {}, cards ? money(worth) : "—")));
+}
+
 function emptyState(title, text) {
   return el("div", { class: "kk-empty" },
     el("div", { class: "kk-empty-slots", "aria-hidden": "true" }, el("i"), el("i"), el("i")),
@@ -261,13 +298,15 @@ function fact(label, value, cls) {
 // Kopje boven een subset (bv. "Classic Collection") in het kaartoverzicht
 const partTitle = (part) => el("h3", { class: "part-title" }, part);
 
-// Zet een kopje vóór de eerste kaart van elke subset; alleen bij sorteren op nummer, anders lopen ze door elkaar
+// Zet een kopje vóór de eerste kaart van elke subset (of elke set bij "Alle kaarten");
+// alleen bij sorteren op nummer, anders lopen ze door elkaar
 function withHeadings(cards, heading, node) {
   const out = [];
   let prev = null;
   for (const c of cards) {
-    if (S.sort === "number" && c.part && c.part !== prev) out.push(heading(c.part));
-    prev = c.part;
+    const key = c.group ?? c.part;
+    if (S.sort === "number" && key && key !== prev) out.push(heading(key));
+    prev = key;
     out.push(node(c));
   }
   return out;
@@ -413,7 +452,7 @@ function renderSeries(bySet) {
     return { g, sets, open };
   }).filter((x) => x.sets.length);
 
-  ui.series.replaceChildren(...groups.flatMap(({ g, sets, open }) => [
+  ui.series.replaceChildren(allItem(), el("span", { class: "all-sep", "aria-hidden": "true" }), ...groups.flatMap(({ g, sets, open }) => [
     el("button", { type: "button", class: "series" + (open ? "" : " closed"), "aria-expanded": String(open), onclick: () => {
       S.open[g.name] = !open; pref.set("open", S.open); render();
     } }, icon(ICONS.chevron, 16), el("span", {}, g.name), el("small", {}, `${g.sets.length} ${g.sets.length === 1 ? "set" : "sets"}`)),
@@ -422,6 +461,15 @@ function renderSeries(bySet) {
   if (!groups.length) {
     ui.series.append(el("p", { class: "setpanel-empty" }, S.sets.length ? `Geen set gevonden voor "${S.q}".` : "Sets laden…"));
   }
+}
+
+// Vast item bovenaan het setpaneel: je hele collectie in één map
+function allItem() {
+  const n = Object.keys(S.owned).length;
+  return el("button", { type: "button", class: "kk-nav-item all-item", "aria-current": S.nav === "collection" && S.setId === ALL ? "page" : null, onclick: () => pickSet(ALL) },
+    el("span", { class: "all-ico", "aria-hidden": "true" }, icon(ICONS.collection, 18)),
+    el("span", { class: "kk-nav-lbl" }, el("span", { class: "kk-nav-txt" }, "Alle kaarten"), el("span", { class: "all-sub" }, "Je hele collectie")),
+    el("span", { class: "kk-nav-cnt" }, String(n)));
 }
 
 function navItem(set, owned) {
@@ -448,12 +496,14 @@ function renderMain(bySet) {
     return [...out, pageTitle(title, sub), emptyState("Komt eraan", text)];
   }
   if (S.setsError) return [...out, emptyState("Er ging iets mis", S.setsError)];
-  const set = S.setById[S.setId];
-  if (!set) return [...out, el("p", { class: "loading" }, "Sets laden…")];
+  const all = S.setId === ALL;
+  const set = all ? null : S.setById[S.setId];
+  if (!all && !set) return [...out, el("p", { class: "loading" }, "Sets laden…")];
+  if (all && (!S.sets.length || (!S.ownedLoaded && !S.ownedError))) return [...out, el("p", { class: "loading" }, "Collectie laden…")];
 
-  const total = setTotal(set);
-  const parts = (S.subsets[set.id] || []).map((s) => s.part);
-  const cards = S.cards[set.id];
+  const total = all ? 0 : setTotal(set);
+  const parts = all ? [] : (S.subsets[set.id] || []).map((s) => s.part);
+  const cards = all ? collectionCards() : S.cards[set.id];
 
   // Kop van de set: titel + voortgang + nummer 2 t/m 4 links, rechts de topkaart.
   // Volgorde naar keuze: zeldzaamste eerst (bij gelijke zeldzaamheid de hoogste waarde), of alleen de hoogste waarde
@@ -464,21 +514,26 @@ function renderMain(bySet) {
   const feat = ranked[0], podium = ranked.slice(1, 4);
   out.push(el("div", { class: "sethead" + (feat ? "" : " sethead-solo") },
     el("div", { class: "sethead-main" },
-      pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
-      setProgress(set.name, bySet[set.id] || 0, total),
+      all ? pageTitle("Alle kaarten", "Je hele collectie · alle sets")
+        : pageTitle(set.name, `${set.series} · ${total} kaarten` + (parts.length ? ` · incl. ${parts.join(", ")}` : "")),
+      all ? collectionSummary(cards) : setProgress(set.name, bySet[set.id] || 0, total),
       feat ? el("div", { class: "podium-head" },
         el("span", { class: "podium-label" }, "Top 4 op"),
         segmented("Top 4 op", S.topBy, [{ value: "rarity", label: "Zeldzaamheid" }, { value: "value", label: "Waarde" }], (v) => {
           S.topBy = v; pref.set("topBy", v); render();
         })) : null,
-      podium.length ? el("div", { class: "podium", role: "list", "aria-label": "Nummer 2 tot en met 4 uit je collectie van deze set" },
+      podium.length ? el("div", { class: "podium", role: "list", "aria-label": `Nummer 2 tot en met 4 uit je collectie${all ? "" : " van deze set"}` },
         podium.map((c, i) => miniCard(c, i + 2))) : null),
     feat ? el("div", { class: "feat" },
-      el("span", { class: "feat-badge" }, "Topkaart van deze set"),
+      el("span", { class: "feat-badge" }, all ? "Topkaart van je collectie" : "Topkaart van deze set"),
       el("div", { class: "feat-card" }, cardTile(feat, { foil: true, holoMin: 0.7 }))) : null));
 
+  if (all && cards && !cards.length) {
+    out.push(emptyState("Nog geen kaarten", "Kies een set in het setpaneel en voeg je eerste kaart toe; hier zie je daarna je hele collectie."));
+    return out;
+  }
   if (!cards) {
-    out.push(S.cardsError[set.id] ? emptyState("Er ging iets mis", S.cardsError[set.id]) : el("p", { class: "loading" }, "Kaarten laden…"));
+    out.push(!all && S.cardsError[set.id] ? emptyState("Er ging iets mis", S.cardsError[set.id]) : el("p", { class: "loading" }, "Kaarten laden…"));
     return out;
   }
 
@@ -497,10 +552,11 @@ function renderMain(bySet) {
 
   // Filteren en sorteren
   const q = S.q.trim().toLowerCase();
-  const setMatches = q && set.name.toLowerCase().includes(q);
+  const setMatches = q && !all && set.name.toLowerCase().includes(q);
   let list = cards.filter((c) => {
     const n = countOf(c.id);
-    if (q && !setMatches && !c.name.toLowerCase().includes(q)) return false;
+    // Bij "Alle kaarten" zoek je ook op setnaam
+    if (q && !setMatches && !c.name.toLowerCase().includes(q) && !(all && c.group.toLowerCase().includes(q))) return false;
     if (S.own === "have" && !n) return false;
     if (S.own === "need" && n) return false;
     if (S.typeF !== "all" && typeName(c) !== S.typeF) return false;
@@ -518,7 +574,7 @@ function renderMain(bySet) {
 
   if (S.filterOpen) {
     out.push(el("div", { class: "filterbar" },
-      segmented("Bezit", S.own, [{ value: "all", label: "Alles" }, { value: "have", label: "In bezit" }, { value: "need", label: "Nog niet" }], (v) => {
+      all ? null : segmented("Bezit", S.own, [{ value: "all", label: "Alles" }, { value: "have", label: "In bezit" }, { value: "need", label: "Nog niet" }], (v) => {
         S.own = v; S.shown = PAGE; render();
       }),
       select("Type", S.typeF, [{ value: "all", label: "Alle types" }, ...TYPES.map((t) => ({ value: t, label: t }))], (v) => {
@@ -798,9 +854,8 @@ async function enter(session) {
   if (S.sets.length) for (const id of Object.keys(S.owned)) if (!S.setById[setIdOf(id)]) delete S.owned[id];
   render();
   loadCards(S.setId);
-  // Ook de sets van je kaarten ophalen, voor de kaartwaaier in de header
-  const ownedSets = new Set(Object.keys(S.owned).map((id) => parentIdOf(setIdOf(id))));
-  ownedSets.forEach((id) => { if (S.setById[id]) loadCards(id); });
+  // Ook de sets van je kaarten ophalen, voor de kaartwaaier in de header en "Alle kaarten"
+  loadOwnedSets();
 }
 
 function leave() {
