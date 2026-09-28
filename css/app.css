@@ -249,3 +249,5 @@ button.lrow:hover{background:var(--bg)}
 .coll-worth{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
 .coll-worth small{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-soft)}
 .coll-worth b{color:var(--red)}
+/* Lang woord ("Instellingen") past met iets kleinere letters netjes in de knop */
+.rail-btn-long span{font-size:9.5px;letter-spacing:-.2px}

@@ -39,6 +39,7 @@ const ICONS = {
   home: '<path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/>',
   collection: '<rect x="7" y="4" width="11" height="15" rx="2"/><path d="M4.5 7.5v11A2.5 2.5 0 0 0 7 21h8.5"/>',
   wish: '<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   binders: '<rect x="6" y="3.5" width="13" height="17" rx="2"/><path d="M9.5 3.5v17M4 7.5h3.5M4 12h3.5M4 16.5h3.5"/>',
   stats: '<path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-3"/>',
   logout: '<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/>',
@@ -373,13 +374,14 @@ function buildShell() {
 
   // Menubalk: logo, Scan, Start · Collectie · Wensen · Statistiek, Uitloggen
   ui.rail = {};
-  const railBtn = (key, label) => (ui.rail[key] = el("button", { type: "button", class: "rail-btn", onclick: () => go(key) }, icon(ICONS[key]), el("span", {}, label)));
+  const railBtn = (key, label, extra = "") => (ui.rail[key] = el("button", { type: "button", class: `rail-btn ${extra}`.trim(), onclick: () => go(key) }, icon(ICONS[key]), el("span", {}, label)));
   const rail = el("nav", { class: "rail", "aria-label": "Hoofdmenu" },
     el("button", { type: "button", class: "mark-btn", "aria-label": "Intro opnieuw afspelen", onclick: () => toast("De intro komt in stap 4") }, logo(52)),
     el("button", { type: "button", class: "scan-btn", "aria-label": "Kaart scannen", onclick: () => toast("Scannen komt in stap 5") }, icon(ICONS.scan, 24), el("span", {}, "Scan")),
     el("span", { class: "rail-sep" }),
     railBtn("home", "Start"), railBtn("collection", "Collectie"), railBtn("binders", "Binders"), railBtn("wish", "Wensen"), railBtn("stats", "Statistiek"),
     el("span", { class: "rail-spacer" }),
+    railBtn("settings", "Instellingen", "rail-btn-long"),
     el("button", { type: "button", class: "rail-btn", onclick: () => supabase.auth.signOut() }, icon(ICONS.logout), el("span", {}, "Uitloggen")));
 
   // Setpaneel: zoeken, sets per serie, "+ Editie toevoegen"
@@ -485,6 +487,7 @@ function navItem(set, owned) {
 // Schermen die in een volgende stap gebouwd worden
 const LATER = {
   home: ["Welkom terug", "Start", "Het startscherm met je tegels, \"Bezig met\" en je waardevolste kaarten komt in stap 2."],
+  settings: ["Instellingen", "Stashdex naar jouw smaak", "Hier kun je straks Stashdex instellen, bijvoorbeeld of een kaart in meerdere binders tegelijk mag. Instellingen komen later."],
   binders: ["Binders", "Je eigen binders, net als in het echt", "Hier maak je straks je eigen binders met sleeves of toploaders en kies je een kaft. Binders komen in stap 7."],
   wish: ["Wensenlijst", "Nog niet gebouwd", "De wensenlijst komt in stap 3, samen met het vernieuwde kaartdetail."],
   stats: ["Statistiek", "Je hele collectie in cijfers", "Statistiek komt in stap 2."],
