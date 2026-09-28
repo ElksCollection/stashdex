@@ -68,7 +68,7 @@ body{padding:0}
 .rail{background:var(--paper);border-radius:18px;box-shadow:var(--shadow-raised);padding:14px 12px;display:flex;flex-direction:column;align-items:center;gap:8px}
 .rail-btn{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:10px 0 8px;border:none;border-radius:14px;background:transparent;color:var(--ink-soft);font-family:var(--font-sans);font-size:11px;font-weight:700;cursor:pointer}
 .rail-btn:hover{background:var(--bg);color:var(--ink)}
-.rail-btn.on{background:linear-gradient(180deg,var(--gold-bright),var(--gold));color:var(--on-gold);box-shadow:inset 0 1px 0 var(--sheen),var(--shadow-press-gold)}
+.rail-btn.on{background:linear-gradient(180deg,#1a4480,#0b2447);color:#ffcb05;box-shadow:inset 0 0 0 2px #ffcb05,inset 0 3px 0 rgba(255,255,255,.18),0 3px 0 #04142b}
 .rail-sep{width:40px;border-top:1.5px dashed var(--line);margin:8px 0}
 .rail-spacer{flex-grow:1}
 .mark-btn{border:none;background:none;padding:4px;margin:0 0 6px;cursor:pointer;border-radius:12px}
@@ -107,7 +107,7 @@ body{padding:0}
 .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .toolbar-gap{flex-grow:1}
 .icon-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer;box-shadow:0 2px 0 var(--line)}
-.icon-btn.on{background:linear-gradient(180deg,var(--gold-bright),var(--gold));color:var(--on-gold);border-color:var(--gold-edge);box-shadow:var(--shadow-press-gold)}
+.icon-btn.on{background:linear-gradient(180deg,#1a4480,#0b2447);color:#ffcb05;box-shadow:inset 0 0 0 2px #ffcb05,inset 0 3px 0 rgba(255,255,255,.18),0 3px 0 #04142b;border-color:#0b2447}
 .filterbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--paper);border-radius:16px;padding:10px 14px;box-shadow:var(--shadow-raised)}
 .filterbar .kk-select label{color:var(--ink-soft)}
 .count-note{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--ink-soft)}
@@ -236,3 +236,9 @@ button.lrow:hover{background:var(--bg)}
 @media (prefers-reduced-motion: reduce){.feat-card .kk-card-art::after,.mini-art::after{animation:none}}
 /* Topkaart is smaller dan een gewone tegel: waarde iets kleiner zodat ook € 158,15 past */
 .feat-card .kk-fact b{font-size:11px;letter-spacing:-.5px}
+
+/* Geselecteerde knoppen: navy met geel, de kleuren van het logo (prototype-update 12, gekozen optie 2) */
+.kk-seg button[aria-pressed=true],.kk-tab[aria-selected=true],.kk-nav-item[aria-current=page]{background:linear-gradient(180deg,#1a4480,#0b2447);color:#ffcb05;box-shadow:inset 0 0 0 2px #ffcb05,inset 0 3px 0 rgba(255,255,255,.18),0 3px 0 #04142b}
+.kk-nav-item[aria-current=page] .kk-nav-cnt{background:rgba(255,203,5,.16);color:#ffcb05}
+.kk-nav-item[aria-current=page] .kk-nav-bar{background:rgba(255,255,255,.18)}
+.kk-nav-item[aria-current=page] .kk-nav-bar i{background:#ffcb05}

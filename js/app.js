@@ -276,8 +276,16 @@ function withHeadings(cards, heading, node) {
 // Plaatje van een kaart; sommige oude kaarten hebben er (nog) geen, die krijgen een nette lege kaart
 function cardImg(card, { large = false, lazy = true } = {}) {
   const src = (large && card.imgLarge) || card.img;
-  if (!src) return el("span", { class: "no-art", role: "img", "aria-label": `${card.name} (geen afbeelding)` }, el("span", {}, card.name));
-  return el("img", { src, alt: large ? card.name : "", loading: lazy ? "lazy" : null });
+  const empty = () => el("span", { class: "no-art", role: "img", "aria-label": `${card.name} (geen afbeelding)` }, el("span", {}, card.name));
+  if (!src) return empty();
+  // De plaatjesserver hapert soms; dan tot 3 keer opnieuw proberen (steeds iets later), daarna de lege kaart
+  let tries = 0;
+  const img = el("img", { src, alt: large ? card.name : "", loading: lazy ? "lazy" : null });
+  img.addEventListener("error", () => {
+    if (++tries > 3) return img.isConnected && img.replaceWith(empty());
+    setTimeout(() => { img.src = `${src}${src.includes("?") ? "&" : "?"}opnieuw=${tries}`; }, 800 * tries);
+  });
+  return img;
 }
 
 // Kaarttegel: plaatje, type, naam, zeldzaamheid en Nr · Aantal · Waarde
