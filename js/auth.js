@@ -4,17 +4,21 @@ import { supabase, remember, setRemember, recoveryLink, linkError, explain } fro
 const $ = (id) => document.getElementById(id);
 const screens = ["login", "forgot", "newpw", "home"];
 let recovering = recoveryLink;
+let changing = false; // wachtwoord wijzigen vanuit Instellingen (terwijl je al bent ingelogd)
 
 // Toont precies één scherm
 function show(screen) {
   screens.forEach((s) => ($(s).hidden = s !== screen));
 }
 
+// Opent het formulier "Nieuw wachtwoord" vanuit de app (wordt ingevuld door startAuth)
+export let openPasswordChange = () => {};
+
 // Start de inlogschermen; onEnter(session) opent de app, onLeave() sluit hem
 export function startAuth({ onEnter, onLeave }) {
   // Kiest het juiste scherm op basis van wel/niet ingelogd
   function render(session) {
-    if (session && recovering) return show("newpw");
+    if (session && (recovering || changing)) return show("newpw");
     if (!session) {
       onLeave();
       return show("login");
@@ -77,13 +81,34 @@ export function startAuth({ onEnter, onLeave }) {
     const { error } = await supabase.auth.updateUser({ password: $("newPassword").value });
     $("newpwBtn").disabled = false;
     if (error) return ($("newpwError").textContent = `Opslaan mislukt: ${explain(error)}`);
-    recovering = false;
+    recovering = changing = false;
+    $("newpwCancel").hidden = true;
     history.replaceState(null, "", location.pathname);
     $("newPassword").value = $("newPassword2").value = "";
     const { data } = await supabase.auth.getSession();
     render(data.session);
     window.dispatchEvent(new CustomEvent("stashdex-toast", { detail: "Je nieuwe wachtwoord is opgeslagen" }));
   });
+
+  // Terug naar de app zonder het wachtwoord te wijzigen
+  $("newpwCancel").addEventListener("click", async () => {
+    changing = false;
+    $("newpwCancel").hidden = true;
+    $("newPassword").value = $("newPassword2").value = "";
+    $("newpwError").textContent = "";
+    const { data } = await supabase.auth.getSession();
+    render(data.session);
+  });
+
+  // Vanuit Instellingen: hetzelfde formulier "Nieuw wachtwoord" gebruiken
+  openPasswordChange = async () => {
+    changing = true;
+    $("newpwCancel").hidden = false;
+    $("newpwError").textContent = "";
+    const { data } = await supabase.auth.getSession();
+    render(data.session);
+    $("newPassword").focus();
+  };
 
   // Reageert op inloggen/uitloggen, ook bij het openen van de pagina
   supabase.auth.onAuthStateChange((event, session) => {

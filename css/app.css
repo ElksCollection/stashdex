@@ -332,3 +332,38 @@ button.lrow:hover{background:var(--bg)}
   .series{min-height:44px}
   .kk-tab{min-height:40px}
 }
+
+/* ---------- Donker thema (punt 20): donkere waarden uit ontwerpsysteem/tokens.json, zelfde namen als hierboven ---------- */
+:root[data-theme="dark"]{--page:#162a5e;--page-deep:#0e1a3e;--page-ray:rgba(255,203,5,.07);--page-dot:rgba(160,190,255,.10);--on-page:#e8f0ff;--sun:#ffcb05;--page-ink:#0b2447;--bg:#0f0b1c;--paper:#1b1730;--ink:#f3ecd9;--ink-soft:#a79ac9;--gold:#f0c13a;--gold-bright:#ffd766;--gold-bg:#3a2d0e;--on-gold:#1a1206;--red:#ff6e56;--red-deep:#b81e1e;--on-red:#ffffff;--red-bg:#3e1e19;--blue:#82b7f5;--blue-bg:#1b2c4b;--line:#33294f;--card-frame:#5b4a1e;--holo-1:#f6d365;--holo-2:#f98ca8;--holo-3:#8fc8ff;--shadow-tint:rgba(0,0,0,.55);--overlay:rgba(4,2,12,.75);--gold-edge:#b8901f;--red-edge:#7a1010;--gold-glow:rgba(240,193,58,.32);--sheen:rgba(255,255,255,.22);--grain:rgba(200,190,255,.05);--type-fire:#ef5a3c;--type-water:#3d95e6;--type-grass:#44b35b;--type-lightning:#f4c21a;--type-psychic:#a466dd;--type-fighting:#c9692f;--type-darkness:#6a5f96;--type-metal:#9eaab7;--type-dragon:#c39c24;--type-colorless:#cfc8b8;--type-fairy:#ec8fbf;--type-trainer:#7a8aa3;--on-type-dark:#1a1206;--on-type-light:#ffffff;--hill-far:#1f3d5a;--hill-mid:#183350;--hill-near:#122841;--cloud:rgba(200,215,255,.08);--fur-1:#5ef2ff;--fur-2:#ff5fd2;--fur-3:#c8ff4a;--shadow-sm:0 1px 3px rgba(0,0,0,.55);--shadow-raised:0 1px 4px rgba(0,0,0,.55);--shadow-card:0 2px 6px rgba(0,0,0,.55);--shadow-panel:0 2px 10px rgba(0,0,0,.55);--shadow-band:0 4px 18px rgba(0,0,0,.55);--shadow-lift:0 18px 34px -10px rgba(0,0,0,.8);--shadow-press-red:0 3px 0 #7a1010, 0 6px 14px rgba(0,0,0,.6);--shadow-press-gold:0 2px 0 #b8901f;--shadow-inset:inset 0 2px 0 rgba(0,0,0,.35);--shadow-glow:0 0 0 4px rgba(240,193,58,.32);color-scheme:dark}
+/* De lichtere rode bovenkant van de hoofdknop is in donker te zwak voor witte tekst; daarom effen red-deep */
+:root[data-theme="dark"] .kk-btn-primary{background:var(--red-deep)}
+
+/* ---------- Holo en kantelen (punt 20): data-motion="on | calm | off" op <html> ---------- */
+/* Rustig: holo half zo sterk (kantelen tot 2° regelt js/app.js) */
+[data-motion="calm"] .kk-card-art::after,[data-motion="calm"] .kk-modal-art::after,[data-motion="calm"] .rh-sheen{filter:opacity(.5)}
+/* Uit: geen holo-beweging, niet kantelen, geen animaties (zoals "minder beweging" op het apparaat) */
+[data-motion="off"] *,[data-motion="off"] *::before,[data-motion="off"] *::after{animation:none!important}
+[data-motion="off"] .kk-card,[data-motion="off"] .kk-modal-art{transform:none!important}
+
+/* ---------- Instellingen: regels met label + uitleg links, keuze rechts ---------- */
+.settings-box>.set-row{align-self:stretch}
+.set-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 20px;padding:14px 0;border-top:1.5px dashed var(--line)}
+.settings-box h3+.set-row{border-top:none;padding-top:4px}
+.set-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.set-text b{font-family:var(--font-display);font-size:15.5px;color:var(--ink)}
+.set-text span{font-size:13.5px;line-height:1.45;color:var(--ink-soft)}
+.set-ctrl{display:flex;justify-content:flex-end;min-width:0}
+.set-ctrl .kk-select label{display:none}
+.set-inline{display:flex;gap:8px;align-items:center}
+.set-inline .kk-input{width:240px;max-width:100%}
+.set-about{margin:0;font-size:14px;line-height:1.5;color:var(--ink-soft)}
+.confirm-box{max-width:440px}
+.confirm-box p{margin:6px 0 14px;line-height:1.5;color:var(--ink-soft)}
+.confirm-box .fld{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.confirm-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px}
+@media (max-width: 560px){
+  .set-row{grid-template-columns:minmax(0,1fr)}
+  .set-ctrl{justify-content:flex-start}
+  .set-inline{flex-wrap:wrap;width:100%}
+  .set-inline .kk-input{flex:1 1 180px;width:auto}
+}

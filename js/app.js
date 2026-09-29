@@ -1,6 +1,6 @@
 // Stashdex: de app na het inloggen (stap 1: nieuwe indeling + collectie)
 import { supabase, safe } from "./supabase-client.js";
-import { startAuth } from "./auth.js";
+import { startAuth, openPasswordChange } from "./auth.js";
 import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES } from "./rarity.js";
 
 // Prijzen in de data zijn in euro's (Cardmarket); dollars worden omgerekend met de ECB-koers uit data/meta.json.
@@ -83,18 +83,82 @@ const S = {
   cards: {}, cardsError: {},          // per set-id: de kaarten uit data/cards/<id>.json
   history: {},                        // per set-id: belofte met de prijsgeschiedenis uit data/history/<id>.json
   cardById: {},                       // alle geladen kaarten op kaart-id (voor de kaartwaaier)
-  owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count }
+  owned: {}, ownedLoaded: false, ownedError: null, // per sleutel "<kaart-id>|<versie>": { count }
   rate: { eurUsd: FALLBACK_EUR_USD, date: null },  // 1 euro = eurUsd dollar; date = dag van de ECB-koers
+  meta: {},                           // data/meta.json: datum van de prijzen en de koers
+  email: "",
   nav: "collection",
+  // Instellingen die mee gaan naar elk apparaat (zie SYNCED); lokaal bewaard als snelle start
   setId: pref.get("set", "30th"),
   view: pref.get("view", "cards"),
   sort: pref.get("sort", "number"),
   cur: pref.get("cur", "EUR"),
   period: pref.get("period", "1M"),
-  topBy: pref.get("topBy", "rarity"),  // top 4 van de set: op zeldzaamheid (dan waarde) of alleen op waarde
+  // Uitgelichte kaarten (waaier, topkaart, top 4): op zeldzaamheid (dan waarde) of op waarde (dan zeldzaamheid)
+  featBy: pref.get("featBy", pref.get("topBy", "rarity") === "value" ? "value" : "rarity"),
+  showMissing: pref.get("showMissing", true),
+  motion: pref.get("motion", "on"),      // holo en kantelen: on · calm · off
+  theme: pref.get("theme", "auto"),      // light · dark · auto
+  settingsLoaded: false,
+  // Per apparaat (niet naar Supabase): setpaneel open/dicht en welke series opengeklapt zijn
   open: pref.get("open", {}),
   q: "", filterOpen: false, own: "all", typeF: "all", shown: PAGE,
 };
+
+// ---------- Instellingen: lokaal (pref, snel) en in Supabase (mee naar elk apparaat) ----------
+// [sleutel in Supabase/pref, veld in S]; Supabase is de baas: bij het inloggen overschrijft die de lokale waarden
+const SYNCED = [["featBy", "featBy"], ["cur", "cur"], ["view", "view"], ["sort", "sort"], ["showMissing", "showMissing"],
+  ["motion", "motion"], ["theme", "theme"], ["set", "setId"], ["period", "period"]];
+const fieldOf = Object.fromEntries(SYNCED);
+
+// Eén instelling wijzigen: meteen lokaal, en na 800 ms rust ook in Supabase
+function setSetting(key, value) {
+  S[fieldOf[key]] = value;
+  pref.set(key, value);
+  if (key === "theme" || key === "motion") applyLook();
+  scheduleSync();
+}
+
+let syncTimer = null;
+function scheduleSync() {
+  if (!S.settingsLoaded) return; // eerst de instellingen uit Supabase hebben, anders overschrijven we ze
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    if (!S.userId) return;
+    const settings = Object.fromEntries(SYNCED.map(([key, field]) => [key, S[field]]));
+    const { error } = await supabase.from("user_settings")
+      .upsert({ user_id: S.userId, settings, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) console.warn("Instellingen niet opgeslagen in Supabase:", error.message);
+  }, 800);
+}
+
+// Instellingen van dit account ophalen; lukt dat niet, dan gelden de lokale waarden
+async function loadSettings() {
+  try {
+    const { data, error } = await supabase.from("user_settings").select("settings").maybeSingle();
+    if (error) throw error;
+    for (const [key, field] of SYNCED) {
+      if (data?.settings && key in data.settings) {
+        S[field] = data.settings[key];
+        pref.set(key, data.settings[key]);
+      }
+    }
+    applyLook();
+  } catch (err) {
+    console.warn("Instellingen niet geladen uit Supabase:", err.message);
+  }
+  S.settingsLoaded = true;
+}
+
+// Thema (licht/donker) en beweging op <html>; "minder beweging" op het apparaat zet de beweging altijd uit
+const darkQuery = matchMedia("(prefers-color-scheme: dark)"), calmQuery = matchMedia("(prefers-reduced-motion: reduce)");
+function applyLook() {
+  const root = document.documentElement;
+  root.dataset.theme = S.theme === "auto" ? (darkQuery.matches ? "dark" : "light") : S.theme;
+  root.dataset.motion = calmQuery.matches ? "off" : S.motion;
+}
+darkQuery.addEventListener("change", applyLook);
+calmQuery.addEventListener("change", applyLook);
 
 // Kaart-id = "<set-id>-<nummer>"; set-id's kunnen zelf een streepje bevatten (bv. 30th-c), nummers niet
 const setIdOf = (cardId) => cardId.slice(0, cardId.lastIndexOf("-"));
@@ -191,6 +255,7 @@ async function loadRate() {
     const res = await fetch("data/meta.json", { cache: "no-cache" });
     if (!res.ok) return;
     const meta = await res.json();
+    S.meta = meta;
     if (meta.eurUsd > 0) S.rate = { eurUsd: meta.eurUsd, date: meta.rateDate || null };
   } catch { /* reservekoers blijft staan */ }
 }
@@ -462,7 +527,7 @@ function render() {
   const setsWith = Object.keys(bySet).length, ownedCards = Object.keys(S.owned).length;
   ui.heroSub.textContent = `${setsWith} ${setsWith === 1 ? "set" : "sets"} · ${ownedCards} kaarten`;
   ui.cur.replaceChildren(segmented("Valuta", S.cur, [{ value: "USD", label: "$" }, { value: "EUR", label: "€" }], (v) => {
-    S.cur = v; pref.set("cur", v); render();
+    setSetting("cur", v); render();
   }), ...(S.cur === "USD" && S.rate.date
     ? [el("span", { class: "rate-note" }, "Koers van " + new Date(S.rate.date + "T12:00").toLocaleDateString("nl-NL", { day: "numeric", month: "short" }))]
     : []));
@@ -472,11 +537,26 @@ function render() {
   ui.main.replaceChildren(...renderMain(bySet));
 }
 
-// Kaartwaaier: de 6 waardevolste kaarten uit de collectie (1–3 links, 4–6 rechts)
+// Keuzes die op meerdere plekken terugkomen (werkbalk én Instellingen)
+const VIEW_OPTIONS = [{ value: "cards", label: "Kaarten" }, { value: "list", label: "Lijst" }, { value: "grid", label: "Raster" }];
+const SORT_OPTIONS = [
+  { value: "number", label: "Nummer" }, { value: "name", label: "Alfabet (A-Z)" }, { value: "value", label: "Waarde (hoog → laag)" },
+  { value: "rarity", label: "Zeldzaamheid" }, { value: "type", label: "Type" },
+];
+const FEAT_OPTIONS = [{ value: "rarity", label: "Zeldzaamheid" }, { value: "value", label: "Waarde" }];
+
+// Uitgelichte kaarten (waaier, topkaart, top 4) op volgorde van de instelling "featBy":
+// Zeldzaamheid = bijzonderste eerst, bij gelijke zeldzaamheid de waardevolste; Waarde = precies andersom
+function featured(cards) {
+  const byRarity = (a, b) => rarityRank(b.rarity) - rarityRank(a.rarity);
+  const byWorth = (a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1);
+  return [...cards].sort((a, b) => (S.featBy === "value" ? byWorth(a, b) || byRarity(a, b) : byRarity(a, b) || byWorth(a, b)) || a.i - b.i);
+}
+
+// Kaartwaaier: de 6 uitgelichte kaarten uit je hele collectie (1–3 links, 4–6 rechts)
 function renderFan() {
   // Elke versie telt als eigen kaart, dus een dure reverse holo kan er ook in
-  const top = Object.keys(S.owned).map(entryOf).filter(Boolean)
-    .sort((a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1)).slice(0, 6);
+  const top = featured(Object.keys(S.owned).map(entryOf).filter(Boolean)).slice(0, 6);
   // Alleen opnieuw opbouwen als de kaarten veranderd zijn, zodat de waaier niet knippert
   const key = top.map((c) => ownedKey(c.id, variantOf(c))).join(",");
   if (key === ui.fanKey) return;
@@ -538,14 +618,109 @@ const LATER = {
   stats: ["Statistiek", "Je hele collectie in cijfers", "Statistiek komt in stap 2."],
 };
 
-// ---------- Instellingen: voorlopig alleen de back-up van je collectie ----------
+// ---------- Instellingen (punt 20) ----------
+// Eén regel: label met korte uitleg links, de keuze rechts (op de telefoon eronder)
+function settingRow(label, help, control) {
+  return el("div", { class: "set-row" },
+    el("div", { class: "set-text" }, el("b", {}, label), help ? el("span", {}, help) : null),
+    el("div", { class: "set-ctrl" }, control));
+}
+
+// Instelling wijzigen vanuit de Instellingen-pagina: opslaan, scherm bijwerken en kort melden
+function changeSetting(key, value) {
+  setSetting(key, value);
+  render();
+  toast("Opgeslagen");
+}
+
+const ON_OFF = [{ value: "on", label: "Aan" }, { value: "off", label: "Uit" }];
+const settingsGroup = (title, ...rows) => el("section", { class: "settings-box" }, el("h3", {}, title), ...rows);
+
 function renderSettings() {
+  const meta = S.meta || {};
+  const dateTxt = (iso) => (iso ? new Date(iso + "T12:00").toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" }) : "onbekend");
   return [pageTitle("Instellingen", "Stashdex naar jouw smaak"),
-    el("section", { class: "settings-box" },
-      el("h3", {}, "Back-up van je collectie"),
-      el("p", {}, "Download al je kaarten als bestand (CSV). Je kunt het openen in Excel of Google Spreadsheets en bewaren als extra back-up."),
-      el("button", { type: "button", class: "kk-btn kk-btn-primary", onclick: downloadCollection }, "Download mijn collectie (CSV)")),
-    emptyState("Komt eraan", "Meer instellingen, bijvoorbeeld of een kaart in meerdere binders tegelijk mag, komen later.")];
+    settingsGroup("Mijn collectie",
+      settingRow("Uitgelichte kaarten kiezen op", "Bepaalt de kaartwaaier bovenin, de topkaart en de top 4 van een set.",
+        segmented("Uitgelichte kaarten kiezen op", S.featBy, FEAT_OPTIONS, (v) => changeSetting("featBy", v))),
+      settingRow("Download mijn collectie", "Al je kaarten als bestand (CSV), te openen in Excel of Google Spreadsheets. Handig als extra back-up.",
+        el("button", { type: "button", class: "kk-btn kk-btn-ghost", onclick: downloadCollection }, "Download (CSV)"))),
+    settingsGroup("Weergave",
+      settingRow("Valuta", "Prijzen komen in euro's van Cardmarket; dollars worden omgerekend met de koers van de ECB.",
+        segmented("Valuta", S.cur, [{ value: "EUR", label: "€" }, { value: "USD", label: "$" }], (v) => changeSetting("cur", v))),
+      settingRow("Weergave van kaarten", "Dezelfde keuze als boven de kaarten.",
+        segmented("Weergave van kaarten", S.view, VIEW_OPTIONS, (v) => changeSetting("view", v))),
+      settingRow("Sorteren op", "Dezelfde keuze als boven de kaarten.",
+        select("Sorteren op", S.sort, SORT_OPTIONS, (v) => changeSetting("sort", v))),
+      settingRow("\"Nog niet\"-kaarten tonen", "Uit = in een set alleen de kaarten die je hebt.",
+        segmented("Nog niet-kaarten tonen", S.showMissing ? "on" : "off", ON_OFF, (v) => changeSetting("showMissing", v === "on"))),
+      settingRow("Holo en kantelen", calmQuery.matches ? "Je apparaat staat op \"minder beweging\", daarom staat dit nu altijd uit."
+        : "Rustig = zachtere holo en minder kantelen; Uit = geen holo-beweging en niet kantelen.",
+        segmented("Holo en kantelen", S.motion, [{ value: "on", label: "Aan" }, { value: "calm", label: "Rustig" }, { value: "off", label: "Uit" }], (v) => changeSetting("motion", v))),
+      settingRow("Thema", "Automatisch volgt de instelling van je apparaat.",
+        segmented("Thema", S.theme, [{ value: "light", label: "Licht" }, { value: "dark", label: "Donker" }, { value: "auto", label: "Automatisch" }], (v) => changeSetting("theme", v)))),
+    settingsGroup("Account", ...accountRows()),
+    settingsGroup("Over Stashdex",
+      el("p", { class: "set-about" }, `Prijzen bijgewerkt op ${dateTxt(meta.pricesDate)}. `,
+        meta.eurUsd ? `Koers: 1 euro = ${meta.eurUsd.toLocaleString("nl-NL", { maximumFractionDigits: 4 })} dollar (${dateTxt(meta.rateDate)}).` : ""),
+      el("p", { class: "set-about" }, "Bronnen: TCGdex (kaarten), Cardmarket (prijzen), Europese Centrale Bank (koers)."),
+      el("p", { class: "set-about" }, "Stashdex is een eigen project en heeft geen band met The Pokémon Company.")),
+  ];
+}
+
+// Account: e-mailadres en wachtwoord wijzigen, uitloggen op alle apparaten, account verwijderen
+function accountRows() {
+  const emailInput = el("input", { class: "kk-input", type: "email", value: S.email, autocomplete: "email", "aria-label": "Nieuw e-mailadres" });
+  const emailForm = el("form", { class: "set-inline", onsubmit: async (e) => {
+    e.preventDefault();
+    const email = emailInput.value.trim();
+    if (!email || email === S.email) return toast("Vul een ander e-mailadres in");
+    const btn = emailForm.querySelector("button");
+    btn.disabled = true;
+    const { error } = await supabase.auth.updateUser({ email }, { emailRedirectTo: location.origin + location.pathname });
+    btn.disabled = false;
+    toast(error ? `Wijzigen mislukt: ${error.message}` : "Kijk in je mail (oude én nieuwe adres) om de wijziging te bevestigen");
+  } }, emailInput, el("button", { type: "submit", class: "kk-btn kk-btn-ghost" }, "Wijzigen"));
+
+  return [
+    settingRow("E-mailadres", "Je krijgt een mail om het nieuwe adres te bevestigen.", emailForm),
+    settingRow("Wachtwoord", null, el("button", { type: "button", class: "kk-btn kk-btn-ghost", onclick: () => openPasswordChange() }, "Wachtwoord wijzigen")),
+    settingRow("Uitloggen op alle apparaten", "Handig als je ergens bent ingelogd gebleven, bijvoorbeeld op een andere computer.",
+      el("button", { type: "button", class: "kk-btn kk-btn-ghost", onclick: async () => {
+        const ok = await confirmDialog({ title: "Uitloggen op alle apparaten?", text: "Je wordt overal uitgelogd, ook hier. Je collectie blijft gewoon bewaard.", confirm: "Overal uitloggen" });
+        if (ok) await supabase.auth.signOut({ scope: "global" });
+      } }, "Overal uitloggen")),
+    settingRow("Account verwijderen", "Je collectie, wensenlijst, binders en instellingen worden definitief gewist.",
+      el("button", { type: "button", class: "kk-btn kk-btn-danger", onclick: async () => {
+        const ok = await confirmDialog({ title: "Account verwijderen?", text: "Je collectie, wensenlijst, binders en instellingen worden definitief gewist. Dit kan niet ongedaan worden gemaakt.",
+          confirm: "Definitief verwijderen", danger: true, typeWord: "VERWIJDER" });
+        if (!ok) return;
+        const { error } = await supabase.rpc("delete_my_account");
+        if (error) return toast(`Verwijderen mislukt: ${error.message}`);
+        await supabase.auth.signOut({ scope: "local" });
+        window.dispatchEvent(new CustomEvent("stashdex-toast", { detail: "Je account is verwijderd" }));
+      } }, "Account verwijderen")),
+  ];
+}
+
+// Bevestigingsvenster; met typeWord moet je eerst dat woord typen. Geeft true (bevestigd) of false.
+function confirmDialog({ title, text, confirm, danger = false, typeWord = null }) {
+  return new Promise((resolve) => {
+    closeModal();
+    const done = (ok) => { resolve(ok); closeModal(); };
+    const okBtn = el("button", { type: "button", class: `kk-btn ${danger ? "kk-btn-danger" : "kk-btn-primary"}`, disabled: !!typeWord, onclick: () => done(true) }, confirm);
+    const input = typeWord ? el("input", { class: "kk-input", autocomplete: "off", spellcheck: "false",
+      oninput: (e) => { okBtn.disabled = e.target.value.trim() !== typeWord; } }) : null;
+    const scrim = el("div", { class: "kk-scrim", onclick: (e) => { if (e.target === scrim) done(false); } },
+      el("div", { class: "kk-modal confirm-box", role: "alertdialog", "aria-modal": "true", "aria-label": title },
+        el("h2", {}, title), el("p", {}, text),
+        input ? el("label", { class: "fld" }, el("span", { class: "flabel" }, `Typ ${typeWord} om te bevestigen`), input) : null,
+        el("div", { class: "confirm-actions" },
+          el("button", { type: "button", class: "kk-btn kk-btn-ghost", onclick: () => done(false) }, "Annuleren"), okBtn)));
+    modal = { scrim, returnFocus: document.activeElement, onClose: () => resolve(false) };
+    document.body.append(scrim);
+    (input || okBtn).focus();
+  });
 }
 
 // Maakt het CSV-bestand in de browser (puntkomma's en decimale komma's, zoals Nederlandse Excel verwacht)
@@ -591,10 +766,7 @@ function renderMain(bySet) {
 
   // Kop van de set: titel + voortgang + nummer 2 t/m 4 links, rechts de topkaart.
   // Volgorde naar keuze: zeldzaamste eerst (bij gelijke zeldzaamheid de hoogste waarde), of alleen de hoogste waarde
-  const byRarity = (a, b) => rarityRank(b.rarity) - rarityRank(a.rarity);
-  const byWorth = (a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1);
-  const ranked = (cards || []).filter((c) => countOf(c))
-    .sort((a, b) => (S.topBy === "value" ? byWorth(a, b) || byRarity(a, b) : byRarity(a, b) || byWorth(a, b)) || a.i - b.i);
+  const ranked = featured((cards || []).filter((c) => countOf(c)));
   const feat = ranked[0], podium = ranked.slice(1, 4);
   out.push(el("div", { class: "sethead" + (feat ? "" : " sethead-solo") },
     el("div", { class: "sethead-main" },
@@ -603,9 +775,8 @@ function renderMain(bySet) {
       all ? collectionSummary(cards) : setProgress(set.name, bySet[set.id] || 0, total),
       feat ? el("div", { class: "podium-head" },
         el("span", { class: "podium-label" }, "Top 4 op"),
-        segmented("Top 4 op", S.topBy, [{ value: "rarity", label: "Zeldzaamheid" }, { value: "value", label: "Waarde" }], (v) => {
-          S.topBy = v; pref.set("topBy", v); render();
-        })) : null,
+        // Snelle schakelaar; slaat dezelfde instelling op als "Uitgelichte kaarten kiezen op" in Instellingen
+        segmented("Top 4 op", S.featBy, FEAT_OPTIONS, (v) => { setSetting("featBy", v); render(); })) : null,
       podium.length ? el("div", { class: "podium", role: "list", "aria-label": `Nummer 2 tot en met 4 uit je collectie${all ? "" : " van deze set"}` },
         podium.map((c, i) => miniCard(c, i + 2))) : null),
     feat ? el("div", { class: "feat" },
@@ -624,14 +795,9 @@ function renderMain(bySet) {
   // Werkbalk: weergave, sorteren, filter
   const filtered = S.own !== "all" || S.typeF !== "all";
   out.push(el("div", { class: "toolbar" },
-    tabs(S.view, [{ value: "cards", label: "Kaarten" }, { value: "list", label: "Lijst" }, { value: "grid", label: "Raster" }], (v) => {
-      S.view = v; pref.set("view", v); render();
-    }),
+    tabs(S.view, VIEW_OPTIONS, (v) => { setSetting("view", v); render(); }),
     el("div", { class: "toolbar-gap" }),
-    select("Sorteer op", S.sort, [
-      { value: "number", label: "Nummer" }, { value: "name", label: "Alfabet (A-Z)" }, { value: "value", label: "Waarde (hoog → laag)" },
-      { value: "rarity", label: "Zeldzaamheid" }, { value: "type", label: "Type" },
-    ], (v) => { S.sort = v; pref.set("sort", v); render(); }),
+    select("Sorteer op", S.sort, SORT_OPTIONS, (v) => { setSetting("sort", v); render(); }),
     el("button", { type: "button", class: "icon-btn" + (S.filterOpen || filtered ? " on" : ""), "aria-label": "Filter", "aria-pressed": String(S.filterOpen), onclick: () => { S.filterOpen = !S.filterOpen; render(); } }, icon(ICONS.filter))));
 
   // Filteren en sorteren
@@ -643,6 +809,8 @@ function renderMain(bySet) {
     if (q && !setMatches && !c.name.toLowerCase().includes(q) && !(all && c.group.toLowerCase().includes(q))) return false;
     if (S.own === "have" && !n) return false;
     if (S.own === "need" && n) return false;
+    // Instelling '"Nog niet"-kaarten tonen' uit: alleen je eigen kaarten (behalve als je zelf filtert op "Nog niet")
+    if (!S.showMissing && S.own === "all" && !n) return false;
     if (S.typeF !== "all" && typeName(c) !== S.typeF) return false;
     return true;
   });
@@ -740,9 +908,8 @@ function closeMore() {
 
 function pickSet(id) {
   S.nav = "collection";
-  S.setId = id;
+  setSetting("set", id);
   S.shown = PAGE;
-  pref.set("set", id);
   render();
   ui.main.scrollTop = 0;
   loadCards(id);
@@ -864,7 +1031,7 @@ function priceChart(card) {
       const head = el("div", { class: "chart-head" },
         el("span", { class: "flabel" }, "Prijsverloop"),
         segmented("Periode", S.period, PERIODS.map(([label]) => ({ value: label, label })), (v) => {
-          S.period = v; pref.set("period", v); draw();
+          setSetting("period", v); draw();
         }));
       if (pts.length < 2) {
         const since = all[0] ? ` sinds ${dayLabel(all[0].d)}` : "";
@@ -935,6 +1102,7 @@ function chartSvg(pts) {
 function closeModal(restore = true) {
   if (!modal) return;
   modal.scrim.remove();
+  modal.onClose?.(); // bevestigingsvenster dicht zonder keuze = "nee"
   const back = modal.returnFocus;
   modal = null;
   if (restore && back?.isConnected) back.focus();
@@ -957,8 +1125,10 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeMod
 const TILT = ".kk-card:not(.kk-card-missing), .kk-modal-art";
 document.addEventListener("pointermove", (e) => {
   const card = e.target.closest?.(TILT);
-  if (!card || e.pointerType === "touch") return;
-  const r = card.getBoundingClientRect(), max = card.classList.contains("kk-modal-art") ? 12 : 10;
+  // Instelling "Holo en kantelen": Uit = niet kantelen, Rustig = maximaal 2°
+  const motion = document.documentElement.dataset.motion;
+  if (!card || e.pointerType === "touch" || motion === "off") return;
+  const r = card.getBoundingClientRect(), max = motion === "calm" ? 4 : card.classList.contains("kk-modal-art") ? 12 : 10;
   const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
   card.style.setProperty("--mx", (x * 100).toFixed(1) + "%");
   card.style.setProperty("--my", (y * 100).toFixed(1) + "%");
@@ -977,10 +1147,16 @@ const $ = (id) => document.getElementById(id);
 async function enter(session) {
   if (S.userId === session.user.id) return; // al open (bv. na het verversen van de sessie)
   S.userId = session.user.id;
+  S.email = session.user.email || "";
   buildShell();
   render();
-  await Promise.all([loadSets(), loadOwned(), loadRate()]);
+  await Promise.all([loadSets(), loadOwned(), loadRate(), loadSettings()]);
   if (S.userId !== session.user.id) return; // intussen uitgelogd
+  // De set uit de instellingen kan van een ander apparaat komen; controleren dat hij bestaat
+  if (S.setId !== ALL && S.sets.length) {
+    S.setId = parentIdOf(S.setId);
+    if (!S.setById[S.setId]) S.setId = S.series[0]?.sets[0]?.id;
+  }
   // Kaarten met een id die niet (meer) bij een set hoort (bv. oude pokemontcg-id's) niet meetellen
   if (S.sets.length) for (const key of Object.keys(S.owned)) if (!S.setById[setIdOf(splitKey(key)[0])]) delete S.owned[key];
   render();
@@ -994,6 +1170,8 @@ function leave() {
   S.owned = {};
   S.ownedLoaded = false;
   S.ownedError = null;
+  S.settingsLoaded = false;
+  clearTimeout(syncTimer);
   closeModal();
   ui.main = null;
   $("home").replaceChildren();
