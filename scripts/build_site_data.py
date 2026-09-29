@@ -3,7 +3,7 @@
 Heeft geen internet nodig. Schrijft (niet in git, wordt bij elke publicatie opnieuw gemaakt):
 - data/sets.json               alle sets, met hoofdset/subset-koppeling
 - data/cards/<set-id>.json     kaarten met de laatst bekende prijs
-- data/history/<set-id>.json   prijsgeschiedenis per kaart, voor de grafieken
+- data/history/<set-id>.json   prijsgeschiedenis per kaart ({"n": normaal, "r": reverse holo}), voor de grafieken
 - data/meta.json               datum van de prijzen, begin van de geschiedenis en de dollarkoers
 """
 
@@ -75,6 +75,7 @@ def main():
         for c in cards:
             pid = str(c.get("cm", ""))
             trend, rev = (latest.get(pid) or [None, None])
+            has_rev = bool(c.get("rev"))
             card = {
                 "id": c["id"], "name": c["name"], "number": c.get("localId", ""),
                 # Classic Collection-kaarten hebben bij de bron geen zeldzaamheid; die van de subset zelf gebruiken
@@ -82,8 +83,11 @@ def main():
                 "types": c.get("types", []), "supertype": c.get("category"),
                 "img": c["image"] + "/low.webp" if c.get("image") else None,
                 "imgLarge": c["image"] + "/high.webp" if c.get("image") else None,
-                # Hoofdprijs: de gewone versie; heeft die geen prijs, dan de reverse holo
-                "eur": trend or rev, "eurRev": rev if trend else None,
+                # Bestaat er een reverse holo, dan is dat een aparte kaart met een eigen prijs (eurRev);
+                # anders is er maar één versie en geldt de trendprijs (of, als die ontbreekt, die van Cardmarket's holo-veld)
+                "rev": has_rev or None,
+                "eur": trend if has_rev else (trend or rev),
+                "eurRev": rev if has_rev else None,
             }
             extra = overrides.get(c["id"], {})
             if extra.get("number"):
@@ -91,10 +95,13 @@ def main():
             if not card["img"] and str(extra.get("img", "")).startswith(OVERRIDE_HOSTS):
                 card["img"], card["imgLarge"] = extra["img"], extra.get("imgLarge") or extra["img"]
             site_cards.append({k: v for k, v in card.items() if v not in (None, [], "")})
-            # Per dag dezelfde keuze als de hoofdprijs
-            series = [((snap.get(pid) or [None, None])[0] or (snap.get(pid) or [None, None])[1]) for snap in snapshots]
-            if any(v is not None for v in series):
-                history[c["id"]] = series
+            # Per dag dezelfde keuze als de prijzen hierboven: n = normale versie, r = reverse holo
+            pairs = [snap.get(pid) or [None, None] for snap in snapshots]
+            normal = [(p[0] if has_rev else (p[0] or p[1])) for p in pairs]
+            reverse = [p[1] for p in pairs] if has_rev else []
+            entry = {k: v for k, v in (("n", normal), ("r", reverse)) if any(x is not None for x in v)}
+            if entry:
+                history[c["id"]] = entry
         write_json(DATA / "cards" / f"{s['id']}.json", site_cards)
         if history:
             write_json(DATA / "history" / f"{s['id']}.json", {"dates": dates, "prices": history})

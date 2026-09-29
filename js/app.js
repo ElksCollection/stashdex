@@ -99,7 +99,27 @@ const S = {
 // Kaart-id = "<set-id>-<nummer>"; set-id's kunnen zelf een streepje bevatten (bv. 30th-c), nummers niet
 const setIdOf = (cardId) => cardId.slice(0, cardId.lastIndexOf("-"));
 const parentIdOf = (setId) => S.parentOf[setId] || setId;
-const countOf = (cardId) => S.owned[cardId]?.count || 0;
+// Een kaart kan in twee versies in je collectie staan: normaal en reverse holo (punt 21).
+// Sleutel in S.owned = "<kaart-id>|<versie>"; altijd via ownedKey() maken, nooit zelf plakken
+const VARIANT_LABEL = { normal: "Normaal", reverse: "Reverse holo" };
+const ownedKey = (cardId, variant = "normal") => `${cardId}|${variant}`;
+const splitKey = (key) => { const i = key.lastIndexOf("|"); return [key.slice(0, i), key.slice(i + 1)]; };
+const variantOf = (card) => card.variant || "normal";
+const countOf = (card) => S.owned[ownedKey(card.id, variantOf(card))]?.count || 0;
+// De reverse holo van een kaart als eigen kaart: zelfde gegevens, eigen prijs; komt direct na de gewone versie
+const revCache = new WeakMap();
+function revOf(card) {
+  let r = revCache.get(card);
+  if (!r) revCache.set(card, (r = { ...card, variant: "reverse", eur: card.eurRev, i: card.i + 0.5 }));
+  return r;
+}
+// Kaart (in de juiste versie) bij een sleutel uit S.owned; null zolang de set nog niet geladen is
+function entryOf(key) {
+  const [id, variant] = splitKey(key), card = S.cardById[id];
+  return card ? (variant === "reverse" ? revOf(card) : card) : null;
+}
+// Kaarten van een set, met direct na elke kaart de reverse holo als je die hebt (een ontbrekende reverse krijgt geen tegel)
+const withReverses = (cards) => cards.flatMap((c) => (S.owned[ownedKey(c.id, "reverse")] ? [c, revOf(c)] : [c]));
 // Waarde van een kaart = de Cardmarket-marktprijs (euro's) uit de nachtelijke data; eigen waardes bestaan niet (besluit 28-09)
 function valueEur(card) {
   return card.eur ?? null;
@@ -120,10 +140,10 @@ function money(eur) {
   return (S.cur === "EUR" ? "€" : "$") + " " + n.toLocaleString("nl-NL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-// Aantal verschillende kaarten in bezit, per set
+// Aantal verschillende kaartnummers in bezit, per set; normaal en reverse holo van één kaart tellen samen als één
 function ownedBySet() {
   const out = {};
-  for (const id of Object.keys(S.owned)) {
+  for (const id of new Set(Object.keys(S.owned).map((key) => splitKey(key)[0]))) {
     const set = parentIdOf(setIdOf(id));
     out[set] = (out[set] || 0) + 1;
   }
@@ -187,7 +207,7 @@ function loadCards(setId) {
 }
 
 // Sets (hoofdsets) waar je kaarten van hebt
-const ownedSetIds = () => [...new Set(Object.keys(S.owned).map((id) => parentIdOf(setIdOf(id))))].filter((id) => S.setById[id]);
+const ownedSetIds = () => [...new Set(Object.keys(S.owned).map((key) => parentIdOf(setIdOf(splitKey(key)[0]))))].filter((id) => S.setById[id]);
 
 // Kaarten van al je sets ophalen (voor de kaartwaaier en de map "Alle kaarten")
 function loadOwnedSets() {
@@ -201,8 +221,8 @@ function collectionCards() {
   const out = [];
   for (const s of S.sets) {
     if (!ids.has(s.id)) continue;
-    for (const c of S.cards[s.id] || []) {
-      if (countOf(c.id)) out.push({ ...c, i: out.length, group: c.part ? `${s.name} · ${c.part}` : s.name });
+    for (const c of withReverses(S.cards[s.id] || [])) {
+      if (countOf(c)) out.push({ ...c, i: out.length, group: c.part ? `${s.name} · ${c.part}` : s.name });
     }
   }
   return out;
@@ -232,12 +252,12 @@ async function loadOwned() {
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from("collection")
-        .select("card_id,count").order("card_id").range(from, from + 999);
+        .select("card_id,variant,count").order("card_id").order("variant").range(from, from + 999);
       if (error) throw error;
       rows.push(...data);
       if (data.length < 1000) break;
     }
-    S.owned = Object.fromEntries(rows.map((r) => [r.card_id, { count: r.count }]));
+    S.owned = Object.fromEntries(rows.map((r) => [ownedKey(r.card_id, r.variant), { count: r.count }]));
     S.ownedLoaded = true;
     S.ownedError = null;
   } catch (err) {
@@ -271,8 +291,8 @@ function setProgress(name, owned, total) {
 // Samenvatting bovenaan "Alle kaarten": aantal kaarten en sets, exemplaren en totale waarde
 function collectionSummary(cards) {
   const list = cards || [];
-  const copies = list.reduce((n, c) => n + countOf(c.id), 0);
-  const worth = list.reduce((sum, c) => sum + (valueEur(c) ?? 0) * countOf(c.id), 0);
+  const copies = list.reduce((n, c) => n + countOf(c), 0);
+  const worth = list.reduce((sum, c) => sum + (valueEur(c) ?? 0) * countOf(c), 0);
   const sets = new Set(list.map((c) => parentIdOf(c.setId))).size;
   return el("div", { class: "kk-progress coll-sum", role: "group", "aria-label": "Je collectie in het kort" },
     el("div", { class: "kk-progress-name" }, "Mijn collectie",
@@ -345,11 +365,12 @@ function cardImg(card, { large = false, lazy = true } = {}) {
 // Kaarttegel: plaatje, type, naam, zeldzaamheid en Nr · Aantal · Waarde
 // foil = glans altijd aan (topkaart), anders alleen vanaf Illustration Rare; holoMin = minimale glans (topkaart)
 function cardTile(card, { foil = false, holoMin = 0 } = {}) {
-  const n = countOf(card.id), t = tier(card.rarity), missing = !n;
-  const cls = ["kk-card", "kk-type-" + typeKey(card), t?.band && "kk-holo-" + t.band, !missing && (foil || (t && t.rank >= 5)) && "kk-card-foil", missing && "kk-card-missing"].filter(Boolean).join(" ");
-  return el("button", { type: "button", class: cls, style: `--kk-holo-max:${Math.max(holoLevel(card.rarity), holoMin)}`, "aria-label": card.name + (missing ? " (nog niet in bezit, klik om toe te voegen)" : ""), onclick: () => openModal(card) },
-    el("div", { class: "kk-card-art" }, cardImg(card)),
+  const n = countOf(card), t = tier(card.rarity), missing = !n, rev = variantOf(card) === "reverse";
+  const cls = ["kk-card", "kk-type-" + typeKey(card), t?.band && "kk-holo-" + t.band, !missing && (foil || (t && t.rank >= 5)) && "kk-card-foil", missing && "kk-card-missing", rev && "kk-card-rev"].filter(Boolean).join(" ");
+  return el("button", { type: "button", class: cls, style: `--kk-holo-max:${Math.max(holoLevel(card.rarity), holoMin)}`, "aria-label": card.name + (rev ? " (reverse holo)" : "") + (missing ? " (nog niet in bezit, klik om toe te voegen)" : ""), onclick: () => openModal(card) },
+    el("div", { class: "kk-card-art" }, cardImg(card), rev ? rhSheen() : null),
     el("span", { class: "kk-type-tag" }, typeName(card)),
+    rev ? rhTag() : null,
     missing ? el("span", { class: "kk-missing-tag" }, "Nog niet") : null,
     el("div", { class: "kk-card-info" },
       el("div", { class: "kk-card-name", title: card.name }, card.name),
@@ -358,14 +379,20 @@ function cardTile(card, { foil = false, holoMin = 0 } = {}) {
         fact("Nr", numTxt(card)), fact("Aantal", n ? n + "×" : null), fact("Waarde", n ? money(valueEur(card)) : null, "kk-fact-value"))));
 }
 
+// Label "RH" op een reverse holo (pilletje in de stijl van het type-label)
+const rhTag = () => el("span", { class: "rh-tag", title: "Reverse holo" }, "RH");
+// Lichte holo-structuur over de afbeelding van een reverse holo
+const rhSheen = () => el("span", { class: "rh-sheen", "aria-hidden": "true" });
+
 // Kleine liggende kaart voor nummer 2 t/m 4 naast de topkaart: plaatje, naam, zeldzaamheid, waarde
 function miniCard(card, place) {
-  return el("button", { type: "button", role: "listitem", class: `mini kk-type-${typeKey(card)}`, "aria-label": `Nummer ${place}: ${card.name}`, onclick: () => openModal(card) },
+  const rev = variantOf(card) === "reverse";
+  return el("button", { type: "button", role: "listitem", class: `mini kk-type-${typeKey(card)}` + (rev ? " mini-rev" : ""), "aria-label": `Nummer ${place}: ${card.name}${rev ? " (reverse holo)" : ""}`, onclick: () => openModal(card) },
     el("span", { class: "mini-place" }, "#" + place),
     el("span", { class: "mini-art" }, cardImg(card)),
     el("span", { class: "mini-info" },
       el("b", { class: "mini-name", title: card.name }, card.name),
-      chip(card.rarity),
+      el("span", { class: "mini-chips" }, chip(card.rarity), rev ? rhTag() : null),
       el("span", { class: "mini-val mono" }, money(valueEur(card)) ?? "—")));
 }
 
@@ -447,14 +474,15 @@ function render() {
 
 // Kaartwaaier: de 6 waardevolste kaarten uit de collectie (1–3 links, 4–6 rechts)
 function renderFan() {
-  const top = Object.keys(S.owned).map((id) => S.cardById[id]).filter(Boolean)
+  // Elke versie telt als eigen kaart, dus een dure reverse holo kan er ook in
+  const top = Object.keys(S.owned).map(entryOf).filter(Boolean)
     .sort((a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1)).slice(0, 6);
   // Alleen opnieuw opbouwen als de kaarten veranderd zijn, zodat de waaier niet knippert
-  const key = top.map((c) => c.id).join(",");
+  const key = top.map((c) => ownedKey(c.id, variantOf(c))).join(",");
   if (key === ui.fanKey) return;
   ui.fanKey = key;
   const fanCard = (c, i) => {
-    const label = `${c.name} · ${S.setById[parentIdOf(c.setId)]?.name || ""}`;
+    const label = `${c.name}${variantOf(c) === "reverse" ? " (reverse holo)" : ""} · ${S.setById[parentIdOf(c.setId)]?.name || ""}`;
     return el("button", { type: "button", class: `fan-card f${i} kk-type-${typeKey(c)}`, title: label, "aria-label": label, onclick: () => openModal(c) },
       cardImg(c, { lazy: false }));
   };
@@ -528,11 +556,11 @@ async function downloadCollection(e) {
   try {
     await loadOwnedSets(); // namen en marktprijzen van alle sets waar je kaarten van hebt
     const cell = (v) => { const s = v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : String(v); return /[;"\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s; };
-    const rows = Object.entries(S.owned).sort(([a], [b]) => a.localeCompare(b, "nl", { numeric: true })).map(([id, o]) => {
-      const card = S.cardById[id];
-      return [id, card?.name, S.setById[setIdOf(id)]?.name, card?.number, o.count, card?.eur];
+    const rows = Object.entries(S.owned).sort(([a], [b]) => a.localeCompare(b, "nl", { numeric: true })).map(([key, o]) => {
+      const [id, variant] = splitKey(key), card = entryOf(key);
+      return [id, variant, card?.name, S.setById[setIdOf(id)]?.name, card?.number, o.count, card?.eur];
     });
-    const lines = [["card_id", "naam", "set", "nummer", "aantal", "marktprijs_eur"], ...rows].map((r) => r.map(cell).join(";"));
+    const lines = [["card_id", "variant", "naam", "set", "nummer", "aantal", "marktprijs_eur"], ...rows].map((r) => r.map(cell).join(";"));
     // BOM vooraan, zodat Excel de é van Pokémon goed toont
     const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
     el("a", { href: url, download: `stashdex-collectie-${new Date().toLocaleDateString("sv-SE")}.csv` }).click();
@@ -559,13 +587,13 @@ function renderMain(bySet) {
 
   const total = all ? 0 : setTotal(set);
   const parts = all ? [] : (S.subsets[set.id] || []).map((s) => s.part);
-  const cards = all ? collectionCards() : S.cards[set.id];
+  const cards = all ? collectionCards() : S.cards[set.id] && withReverses(S.cards[set.id]);
 
   // Kop van de set: titel + voortgang + nummer 2 t/m 4 links, rechts de topkaart.
   // Volgorde naar keuze: zeldzaamste eerst (bij gelijke zeldzaamheid de hoogste waarde), of alleen de hoogste waarde
   const byRarity = (a, b) => rarityRank(b.rarity) - rarityRank(a.rarity);
   const byWorth = (a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1);
-  const ranked = (cards || []).filter((c) => countOf(c.id))
+  const ranked = (cards || []).filter((c) => countOf(c))
     .sort((a, b) => (S.topBy === "value" ? byWorth(a, b) || byRarity(a, b) : byRarity(a, b) || byWorth(a, b)) || a.i - b.i);
   const feat = ranked[0], podium = ranked.slice(1, 4);
   out.push(el("div", { class: "sethead" + (feat ? "" : " sethead-solo") },
@@ -610,7 +638,7 @@ function renderMain(bySet) {
   const q = S.q.trim().toLowerCase();
   const setMatches = q && !all && set.name.toLowerCase().includes(q);
   let list = cards.filter((c) => {
-    const n = countOf(c.id);
+    const n = countOf(c);
     // Bij "Alle kaarten" zoek je ook op setnaam
     if (q && !setMatches && !c.name.toLowerCase().includes(q) && !(all && c.group.toLowerCase().includes(q))) return false;
     if (S.own === "have" && !n) return false;
@@ -655,9 +683,9 @@ function renderMain(bySet) {
       el("div", { class: "lrow lhead", role: "row" }, el("span", {}, "Nr"), el("span", {}, "Naam"), el("span", { class: "col-type" }, "Type"),
         el("span", { class: "col-rar" }, "Zeldzaamheid"), el("span", {}, "Aantal"), el("span", { style: "text-align:right" }, "Waarde")),
       withHeadings(shown, (part) => el("div", { class: "lrow lpart", role: "row" }, part), (c) => {
-        const n = countOf(c.id);
+        const n = countOf(c);
         return el("button", { type: "button", class: "lrow" + (n ? "" : " lmiss"), onclick: () => openModal(c) },
-          el("span", { class: "mono" }, numTxt(c)), el("span", { class: "lname" }, c.name),
+          el("span", { class: "mono" }, numTxt(c)), el("span", { class: "lname" }, c.name, variantOf(c) === "reverse" ? rhTag() : null),
           el("span", { class: "col-type" }, el("i", { class: `tdot kk-type-${typeKey(c)}` }), typeName(c)),
           el("span", { class: "col-rar" }, chip(c.rarity)),
           el("span", { class: "mono" }, n ? n + "×" : "—"),
@@ -665,8 +693,8 @@ function renderMain(bySet) {
       })));
   } else if (S.view === "grid") {
     out.push(el("div", { class: "raster" }, withHeadings(shown, partTitle, (c) =>
-      el("button", { type: "button", class: `thumb kk-type-${typeKey(c)}` + (countOf(c.id) ? "" : " tmiss"), "aria-label": c.name, title: c.name, onclick: () => openModal(c) },
-        cardImg(c), el("span", { class: "mono" }, numTxt(c))))));
+      el("button", { type: "button", class: `thumb kk-type-${typeKey(c)}` + (countOf(c) ? "" : " tmiss"), "aria-label": c.name + (variantOf(c) === "reverse" ? " (reverse holo)" : ""), title: c.name, onclick: () => openModal(c) },
+        cardImg(c), variantOf(c) === "reverse" ? rhTag() : null, el("span", { class: "mono" }, numTxt(c))))));
   } else {
     out.push(el("div", { class: "kk-grid" }, withHeadings(shown, partTitle, cardTile)));
   }
@@ -722,12 +750,17 @@ function pickSet(id) {
 
 // ---------- Kaartdetail: aantal aanpassen, toevoegen of verwijderen ----------
 let modal = null;
+let modalSwitching = false; // true terwijl het kaartdetail naar de andere versie wisselt
 
-function openModal(card) {
-  closeModal();
+// card kan de gewone versie of de reverse holo zijn; returnFocus blijft bewaard bij wisselen van versie
+function openModal(card, returnFocus = document.activeElement) {
+  closeModal(false);
+  const variant = variantOf(card), rev = variant === "reverse";
+  const base = S.cardById[card.id] || card;           // de gewone versie, voor het wisselen
+  const label = card.name + (rev ? " (reverse holo)" : "");
   const set = S.setById[parentIdOf(setIdOf(card.id))];
   const where = card.part ? `${set?.name || ""} · ${card.part} · ${numTxt(card)}` : `${set?.name || ""} · #${card.number}/${set?.printedTotal || set?.total || "?"}`;
-  const have = countOf(card.id);
+  const have = countOf(card);
   let count = Math.max(1, have);
   const t = tier(card.rarity);
   const countEl = el("b", { class: "mono" }, count);
@@ -739,25 +772,37 @@ function openModal(card) {
   async function save() {
     setBusy(true);
     const { error } = await supabase.from("collection")
-      .upsert({ user_id: S.userId, card_id: card.id, count, updated_at: new Date().toISOString() }, { onConflict: "user_id,card_id" });
+      .upsert({ user_id: S.userId, card_id: card.id, variant, count, updated_at: new Date().toISOString() }, { onConflict: "user_id,card_id,variant" });
     setBusy(false);
     if (error) return toast(`Opslaan mislukt: ${error.message}`);
-    S.owned[card.id] = { ...S.owned[card.id], count };
+    const key = ownedKey(card.id, variant);
+    S.owned[key] = { ...S.owned[key], count };
     closeModal();
     render();
-    toast(have ? `${card.name} opgeslagen` : `${card.name} staat nu in je collectie`);
+    toast(have ? `${label} opgeslagen` : `${label} staat nu in je collectie`);
   }
 
   async function remove() {
     setBusy(true);
-    const { error } = await supabase.from("collection").delete().eq("user_id", S.userId).eq("card_id", card.id);
+    const { error } = await supabase.from("collection").delete().eq("user_id", S.userId).eq("card_id", card.id).eq("variant", variant);
     setBusy(false);
     if (error) return toast(`Verwijderen mislukt: ${error.message}`);
-    delete S.owned[card.id];
+    delete S.owned[ownedKey(card.id, variant)];
     closeModal();
     render();
-    toast(`${card.name} is uit je collectie gehaald`);
+    toast(`${label} is uit je collectie gehaald`);
   }
+
+  // Keuze Normaal · Reverse holo, alleen als er een reverse holo bestaat (of als je er een hebt)
+  const hasRev = base.rev || S.owned[ownedKey(card.id, "reverse")];
+  const versions = hasRev
+    ? el("div", { class: "kk-full modal-variant" },
+      segmented("Versie", variant, Object.entries(VARIANT_LABEL).map(([value, text]) => ({ value, label: text })), (v) => {
+        if (v === variant) return;
+        modalSwitching = true;
+        openModal(v === "reverse" ? revOf(base) : base, modal?.returnFocus ?? returnFocus);
+      }))
+    : null;
 
   actions.append(
     el("button", { type: "button", class: "kk-btn kk-btn-primary", onclick: save }, have ? "Opslaan" : "Toevoegen aan collectie"),
@@ -765,13 +810,14 @@ function openModal(card) {
 
   const closeBtn = el("button", { type: "button", class: "kk-modal-close", "aria-label": "Sluiten", onclick: closeModal }, "×");
   const scrim = el("div", { class: "kk-scrim", onclick: (e) => { if (e.target === scrim) closeModal(); } },
-    el("div", { class: "kk-modal", role: "dialog", "aria-modal": "true", "aria-label": card.name },
+    el("div", { class: "kk-modal", role: "dialog", "aria-modal": "true", "aria-label": label },
       closeBtn,
-      el("div", { class: "kk-modal-art" + (t?.band ? " kk-holo-" + t.band : ""), style: `--kk-holo-max:${card.rarity ? holoLevel(card.rarity) : 0.55}` },
-        cardImg(card, { large: true, lazy: false })),
+      el("div", { class: "kk-modal-art" + (t?.band ? " kk-holo-" + t.band : "") + (rev ? " kk-modal-rev" : ""), style: `--kk-holo-max:${card.rarity ? holoLevel(card.rarity) : 0.55}` },
+        cardImg(card, { large: true, lazy: false }), rev ? rhSheen() : null, rev ? rhTag() : null),
       el("h2", {}, card.name),
-      el("div", { class: "kk-modal-sub" }, `${where} · ${card.rarity || "—"}`),
+      el("div", { class: "kk-modal-sub" }, `${where} · ${card.rarity || "—"}` + (rev ? " · Reverse holo" : "")),
       el("div", { class: "kk-fieldgrid" },
+        versions,
         el("div", { class: "kk-full stepper-wrap" },
           el("span", { class: "flabel" }, "Aantal"),
           el("div", { class: "stepper" },
@@ -783,9 +829,11 @@ function openModal(card) {
         el("div", { class: "kk-full" }, priceChart(card)),
         actions)));
 
-  modal = { scrim, returnFocus: document.activeElement };
+  modal = { scrim, returnFocus };
   document.body.append(scrim);
-  closeBtn.focus();
+  // Na wisselen van versie blijft de focus op de versieknop, anders op de sluitknop
+  (versions && modalSwitching ? versions.querySelector("[aria-pressed=true]") : closeBtn).focus();
+  modalSwitching = false;
 }
 
 // ---------- Prijsgrafiek in het kaartdetail ----------
@@ -804,7 +852,9 @@ function priceChart(card) {
   const box = el("div", { class: "chart" }, el("p", { class: "chart-note" }, "Prijsverloop laden…"));
   loadHistory(card.setId).then((hist) => {
     const all = [];
-    const series = hist?.prices?.[card.id] || [];
+    // Per kaart { n: normale versie, r: reverse holo }; een oud bestand heeft alleen een rij (= normaal)
+    const entry = hist?.prices?.[card.id];
+    const series = (Array.isArray(entry) ? (variantOf(card) === "reverse" ? [] : entry) : entry?.[variantOf(card) === "reverse" ? "r" : "n"]) || [];
     (hist?.dates || []).forEach((d, i) => { if (series[i] != null) all.push({ d, v: series[i] }); });
     const draw = () => {
       const days = Object.fromEntries(PERIODS)[S.period] ?? 30;
@@ -881,12 +931,13 @@ function chartSvg(pts) {
     el("p", { class: "chart-note" }, "Cardmarket-trendprijs, elke nacht bijgewerkt."));
 }
 
-function closeModal() {
+// restore = focus teruggeven aan waar je vandaan kwam (niet bij het wisselen van versie)
+function closeModal(restore = true) {
   if (!modal) return;
   modal.scrim.remove();
   const back = modal.returnFocus;
   modal = null;
-  if (back?.isConnected) back.focus();
+  if (restore && back?.isConnected) back.focus();
 }
 
 // ---------- Meldingen en kaart-kanteling ----------
@@ -931,7 +982,7 @@ async function enter(session) {
   await Promise.all([loadSets(), loadOwned(), loadRate()]);
   if (S.userId !== session.user.id) return; // intussen uitgelogd
   // Kaarten met een id die niet (meer) bij een set hoort (bv. oude pokemontcg-id's) niet meetellen
-  if (S.sets.length) for (const id of Object.keys(S.owned)) if (!S.setById[setIdOf(id)]) delete S.owned[id];
+  if (S.sets.length) for (const key of Object.keys(S.owned)) if (!S.setById[setIdOf(splitKey(key)[0])]) delete S.owned[key];
   render();
   loadCards(S.setId);
   // Ook de sets van je kaarten ophalen, voor de kaartwaaier in de header en "Alle kaarten"

@@ -18,10 +18,14 @@ en kaarten met actuele prijzen, eigen collectie en wensenlijst.
 - `js/auth.js`: inloggen, wachtwoord vergeten, nieuw wachtwoord.
 - `js/app.js`: de app zelf (menubalk, setpaneel, kaarten, kaartdetail).
 - `js/rarity.js`: zeldzaamheidsladder (acht niveaus) en kaarttypes.
-- `supabase/schema.sql`: tabellen en beveiliging in Supabase.
+- `supabase/schema.sql`: tabellen en beveiliging in Supabase (nieuwe database).
+- `supabase/varianten.sql`: kolom `variant` (normaal / reverse holo) voor een bestaande database.
 
 ## Kaartdata
-Drie scripts in `scripts/` (Python, geen extra pakketten nodig):
+Normaal en reverse holo zijn in Stashdex aparte kaarten, elk met een eigen
+aantal en prijs (`eur` en `eurRev`; in Supabase de kolom `variant`).
+
+Vier scripts in `scripts/` (Python, geen extra pakketten nodig):
 - `update_catalog.py` — kaartgegevens van TCGdex (api.tcgdex.net) naar
   `data/catalog/`. Niet elke nacht alles: nieuwe en recente sets wel, oudere
   sets om de 30 dagen (een paar per nacht). Mislukt een set, dan wordt die de
@@ -30,6 +34,7 @@ Drie scripts in `scripts/` (Python, geen extra pakketten nodig):
   producten) naar een momentopname per dag: `data/prices/<datum>.json`
   (trendprijs en trendprijs reverse holo, in euro's). Samen vormen die de
   prijsgeschiedenis.
+- `update_rates.py` — de dollarkoers van de ECB naar `data/prices/koers.json`.
 - `build_site_data.py` — maakt zonder internet de bestanden die de website
   laadt: `data/sets.json`, `data/cards/<set-id>.json`,
   `data/history/<set-id>.json` (grafieken) en `data/meta.json`. Deze staan
