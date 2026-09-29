@@ -18,6 +18,12 @@ en kaarten met actuele prijzen, eigen collectie en wensenlijst.
 - `js/auth.js`: inloggen, wachtwoord vergeten, nieuw wachtwoord.
 - `js/app.js`: de app zelf (menubalk, setpaneel, kaarten, kaartdetail).
 - `js/rarity.js`: zeldzaamheidsladder (acht niveaus) en kaarttypes.
+- `js/scan-camera.js`: scannen: camera, foto uitknippen binnen het kader en
+  tekst lezen met Tesseract (gratis, draait in de browser; eenmalig ±5 MB van
+  jsDelivr).
+- `js/scan-match.js`: scannen: van gelezen naam en nummer (bv. `071/191`)
+  naar de juiste kaart, in één set of in alle sets. Zonder schermcode, dus los
+  te testen met Node.
 - `supabase/schema.sql`: tabellen en beveiliging in Supabase (nieuwe database).
 - `supabase/varianten.sql`: kolom `variant` (normaal / reverse holo) voor een bestaande database.
 
@@ -37,7 +43,8 @@ Vier scripts in `scripts/` (Python, geen extra pakketten nodig):
 - `update_rates.py` — de dollarkoers van de ECB naar `data/prices/koers.json`.
 - `build_site_data.py` — maakt zonder internet de bestanden die de website
   laadt: `data/sets.json`, `data/cards/<set-id>.json`,
-  `data/history/<set-id>.json` (grafieken) en `data/meta.json`. Deze staan
+  `data/history/<set-id>.json` (grafieken), `data/meta.json` en
+  `data/scan.json` (alle kaarten kort, om te scannen in alle sets). Deze staan
   niet in git; ze worden bij elke publicatie opnieuw gemaakt.
 
 `.github/workflows/deploy.yml` draait dit elke nacht (03:00 UTC) en zet de

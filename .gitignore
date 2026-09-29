@@ -19,4 +19,5 @@ __pycache__/
 /data/cards/
 /data/history/
 /data/meta.json
+/data/scan.json
 /_site/

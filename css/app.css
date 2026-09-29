@@ -370,3 +370,84 @@ button.lrow:hover{background:var(--bg)}
   .set-inline{flex-wrap:wrap;width:100%}
   .set-inline .kk-input{flex:1 1 180px;width:auto}
 }
+
+/* ---------- Scannen (stap 5): camerabeeld met kader, herkennen, uitslag, doorscannen ---------- */
+.scan-dlg{max-width:520px}
+.scan-dlg h2{margin-bottom:14px}
+.scan-body{display:flex;flex-direction:column;gap:14px}
+.scan-scope{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px}
+.scan-scope .kk-select label{color:var(--ink-soft)}
+.scan-scope .kk-select select{max-width:230px}
+/* Camerabeeld: vult het vak; daaroverheen een kaartvormig kader (63 × 88 mm) met gele hoekjes, de rest gedimd */
+.scan-view{position:relative;aspect-ratio:3/4;max-height:58vh;width:100%;border-radius:var(--radius-16);overflow:hidden;background:#0b2447}
+.scan-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scan-frame{position:absolute;left:50%;top:47%;height:80%;aspect-ratio:63/88;transform:translate(-50%,-50%);border-radius:14px;box-shadow:0 0 0 9999px rgba(11,36,71,.5)}
+.scan-frame i{position:absolute;width:26px;height:26px;border:4px solid var(--sun);border-radius:4px}
+.scan-frame i:nth-child(1){top:-3px;left:-3px;border-right:none;border-bottom:none;border-top-left-radius:14px}
+.scan-frame i:nth-child(2){top:-3px;right:-3px;border-left:none;border-bottom:none;border-top-right-radius:14px}
+.scan-frame i:nth-child(3){bottom:-3px;left:-3px;border-right:none;border-top:none;border-bottom-left-radius:14px}
+.scan-frame i:nth-child(4){bottom:-3px;right:-3px;border-left:none;border-top:none;border-bottom-right-radius:14px}
+.scan-hint{position:absolute;left:0;right:0;bottom:8px;margin:0;text-align:center;color:#fff;font-weight:700;font-size:13px;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.scan-view-off{display:grid;place-items:center;aspect-ratio:auto;min-height:160px;padding:20px;box-sizing:border-box;background:var(--bg);border:2px dashed var(--line)}
+.scan-view-off p{margin:0;text-align:center;font-size:14.5px;line-height:1.5;color:var(--ink-soft)}
+.scan-actions{display:flex;gap:10px;flex-wrap:wrap}
+.scan-shoot{flex-grow:1;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+/* Herkennen: je foto met een bewegende scanlijn */
+.scanbusy{display:flex;flex-direction:column;align-items:center;gap:10px;padding:8px 0;text-align:center}
+.scanbusy span{font-size:12.5px;color:var(--ink-soft)}
+.scanframe{position:relative;width:180px;max-width:100%;aspect-ratio:5/7;border-radius:12px;overflow:hidden;border:2px solid var(--card-frame);background:var(--line)}
+.scanframe img{width:100%;height:100%;object-fit:cover;display:block}
+.scanframe .no-art{height:100%}
+.scanline{position:absolute;left:0;right:0;height:30%;background:linear-gradient(180deg,transparent,rgba(255,203,5,.55),transparent);animation:kk-scan 1.2s ease-in-out infinite alternate}
+@keyframes kk-scan{from{top:-30%}to{top:100%}}
+@media (prefers-reduced-motion: reduce){.scanline{animation:none}}
+/* Uitslag: jouw foto naast de kaart uit Stashdex */
+.scan-verdict{margin:0;text-align:center;font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--ink)}
+.scan-compare{display:grid;grid-template-columns:repeat(2,minmax(0,150px));justify-content:center;gap:14px}
+.scan-compare figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.scan-compare .scanframe{width:100%}
+.scan-card{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.found-name{font-family:var(--font-display);font-size:22px;line-height:1.15}
+.scan-where{font-family:var(--font-mono);font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-soft)}
+.scan-facts{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px}
+.scan-val{color:var(--red)}
+.scan-have{font-size:12.5px;font-weight:700;color:var(--ink-soft)}
+.kk-empty.scan-none{padding:20px 16px 22px}
+/* Alternatieven en zelf zoeken */
+.alts{display:flex;flex-direction:column;gap:6px}
+.alt{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 10px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);cursor:pointer;text-align:left;font-family:var(--font-sans);color:var(--ink)}
+.alt:hover{border-color:var(--gold);background:var(--bg)}
+.alt-art img,.alt-art .no-art{width:44px;aspect-ratio:5/7;display:block;object-fit:cover;border-radius:5px;background:var(--line)}
+.alt-art .no-art{font-size:6px;padding:2px}
+.alt-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.alt-info b{font-family:var(--font-display);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alt-info span{font-size:12px;color:var(--ink-soft)}
+.scan-search{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1.5px dashed var(--line)}
+.scan-hits{display:flex;flex-direction:column;gap:2px}
+.scan-hit{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-height:40px;padding:8px 10px;border:none;border-radius:10px;background:none;text-align:left;font-family:var(--font-sans);font-size:14px;color:var(--ink);cursor:pointer}
+.scan-hit:hover{background:var(--bg)}
+.scan-hit span{font-size:12px;color:var(--ink-soft);text-align:right}
+.scan-nohit{margin:4px 2px;font-size:13px;color:var(--ink-soft)}
+/* Doorscannen: teller met het lijstje van deze ronde */
+.scan-session{border-top:1.5px dashed var(--line);padding-top:10px}
+.scan-session summary{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:40px;cursor:pointer;list-style:none}
+.scan-session summary::-webkit-details-marker{display:none}
+.scan-session summary b{font-family:var(--font-display);font-size:15px;color:var(--ink)}
+.scan-session summary span{font-size:12.5px;font-weight:700;color:var(--gold)}
+.scan-session[open] summary span{visibility:hidden}
+.scan-session ul{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column}
+.scan-session li{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:40px;font-size:14px;border-top:1px solid var(--line)}
+.scan-session li .linkbtn{align-self:center;white-space:nowrap}
+.alt:focus-visible,.scan-hit:focus-visible,.scan-session summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+/* Melding bovenin zolang de scanner open is (onderin zitten de knoppen), en er altijd doorheen kunnen tikken */
+.toast{pointer-events:none}
+body:has(.scan-dlg) .toast{bottom:auto;top:calc(14px + env(safe-area-inset-top))}
+@media (max-width: 560px){
+  /* Telefoon: scanner vult bijna het hele scherm */
+  .scan-dlg{max-height:96vh}
+  .scan-view{max-height:62vh}
+  .scan-dlg h2{font-size:22px;margin-bottom:10px}
+  .scan-scope .kk-select select{max-width:170px}
+  .scan-compare{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .scan-scope .kk-seg button{padding:10px 12px}
+}

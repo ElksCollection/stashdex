@@ -2,6 +2,8 @@
 import { supabase, safe } from "./supabase-client.js";
 import { startAuth, openPasswordChange } from "./auth.js";
 import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES } from "./rarity.js";
+import { rankCards, searchCards } from "./scan-match.js";
+import { prepareOcr, ocrReady, startCamera, stopCamera, grabFrame, fileToCanvas, thumbOf, readCard, readWhole } from "./scan-camera.js";
 
 // Prijzen in de data zijn in euro's (Cardmarket); dollars worden omgerekend met de ECB-koers uit data/meta.json.
 // Reservekoers (22-09-2026) alleen voor als meta.json niet laadt.
@@ -481,7 +483,7 @@ function buildShell() {
   const railBtn = (key, label, extra = "") => (ui.rail[key] = el("button", { type: "button", class: `rail-btn ${extra}`.trim(), "data-nav": key, onclick: () => go(key) }, icon(ICONS[key]), el("span", {}, label)));
   const rail = el("nav", { class: "rail", "aria-label": "Hoofdmenu" },
     el("button", { type: "button", class: "mark-btn", "aria-label": "Intro opnieuw afspelen", onclick: () => toast("De intro komt in stap 4") }, logo(52)),
-    el("button", { type: "button", class: "scan-btn", "aria-label": "Kaart scannen", onclick: () => toast("Scannen komt in stap 5") }, icon(ICONS.scan, 24), el("span", {}, "Scan")),
+    el("button", { type: "button", class: "scan-btn", "aria-label": "Kaart scannen", onclick: openScan }, icon(ICONS.scan, 24), el("span", {}, "Scan")),
     el("span", { class: "rail-sep" }),
     railBtn("home", "Start"), railBtn("collection", "Collectie"), railBtn("binders", "Binders"), railBtn("wish", "Wensen"), railBtn("stats", "Statistiek"),
     el("span", { class: "rail-spacer" }),
@@ -916,6 +918,20 @@ function pickSet(id) {
   loadCards(id);
 }
 
+// Aantal van een kaart (in één versie) opslaan in Supabase en in S.owned; 0 = uit je collectie halen.
+// Geeft de fout terug, of null als het gelukt is
+async function storeCount(cardId, variant, count) {
+  const { error } = count > 0
+    ? await supabase.from("collection")
+      .upsert({ user_id: S.userId, card_id: cardId, variant, count, updated_at: new Date().toISOString() }, { onConflict: "user_id,card_id,variant" })
+    : await supabase.from("collection").delete().eq("user_id", S.userId).eq("card_id", cardId).eq("variant", variant);
+  if (error) return error;
+  const key = ownedKey(cardId, variant);
+  if (count > 0) S.owned[key] = { ...S.owned[key], count };
+  else delete S.owned[key];
+  return null;
+}
+
 // ---------- Kaartdetail: aantal aanpassen, toevoegen of verwijderen ----------
 let modal = null;
 let modalSwitching = false; // true terwijl het kaartdetail naar de andere versie wisselt
@@ -939,12 +955,9 @@ function openModal(card, returnFocus = document.activeElement) {
 
   async function save() {
     setBusy(true);
-    const { error } = await supabase.from("collection")
-      .upsert({ user_id: S.userId, card_id: card.id, variant, count, updated_at: new Date().toISOString() }, { onConflict: "user_id,card_id,variant" });
+    const error = await storeCount(card.id, variant, count);
     setBusy(false);
     if (error) return toast(`Opslaan mislukt: ${error.message}`);
-    const key = ownedKey(card.id, variant);
-    S.owned[key] = { ...S.owned[key], count };
     closeModal();
     render();
     toast(have ? `${label} opgeslagen` : `${label} staat nu in je collectie`);
@@ -952,10 +965,9 @@ function openModal(card, returnFocus = document.activeElement) {
 
   async function remove() {
     setBusy(true);
-    const { error } = await supabase.from("collection").delete().eq("user_id", S.userId).eq("card_id", card.id).eq("variant", variant);
+    const error = await storeCount(card.id, variant, 0);
     setBusy(false);
     if (error) return toast(`Verwijderen mislukt: ${error.message}`);
-    delete S.owned[ownedKey(card.id, variant)];
     closeModal();
     render();
     toast(`${label} is uit je collectie gehaald`);
@@ -1107,6 +1119,295 @@ function closeModal(restore = true) {
   const back = modal.returnFocus;
   modal = null;
   if (restore && back?.isConnected) back.focus();
+}
+
+// ---------- Scannen (stap 5): camera, herkennen, bevestigen en doorscannen ----------
+let scan = null; // toestand van het scanscherm zolang het open is
+
+// Alle kaarten kort (data/scan.json) om in te zoeken; één keer geladen. Nieuwste set eerst: die wint bij twijfel
+let scanPool = null;
+function loadScanPool() {
+  return (scanPool ||= fetch("data/scan.json", { cache: "no-cache" })
+    .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+    .then((rows) => rows.map(([id, name, number]) => {
+      const own = setIdOf(id), set = parentIdOf(own);
+      return { id, name, number, set, total: S.setById[own]?.printedTotal, rel: S.setById[set]?.releaseDate || "" };
+    }).filter((c) => S.setById[c.set]).sort((a, b) => b.rel.localeCompare(a.rel)))
+    .catch((err) => { scanPool = null; throw err; }));
+}
+
+function openScan() {
+  if (!S.sets.length) return toast("De sets worden nog geladen, probeer het zo nog eens");
+  closeMore();
+  closeModal(false);
+  // Standaard zoeken in de set die open staat; in "Alle kaarten" of op een ander scherm in alle sets
+  const inSet = S.nav === "collection" && S.setId !== ALL;
+  const s = scan = {
+    scope: inSet ? "set" : "all",
+    setId: S.setId !== ALL ? S.setId : S.series[0]?.sets[0]?.id,
+    stage: "camera",   // camera · busy (herkennen) · result
+    stream: null, camError: null, photo: null, read: null, result: null, pick: null, variant: "normal",
+    saving: false, added: [], sessionOpen: false,
+  };
+  s.video = el("video", { class: "scan-video", playsinline: true, muted: true, autoplay: true, "aria-hidden": "true" });
+  s.video.muted = true;
+  // Kaartvormig kader met vier hoekjes
+  s.frame = el("div", { class: "scan-frame", "aria-hidden": "true" }, el("i"), el("i"), el("i"), el("i"));
+  s.body = el("div", { class: "scan-body" });
+  const scrim = el("div", { class: "kk-scrim scan-scrim", onclick: (e) => { if (e.target === scrim) closeModal(); } },
+    el("div", { class: "kk-modal scan-dlg", role: "dialog", "aria-modal": "true", "aria-labelledby": "scan-title" },
+      el("button", { type: "button", class: "kk-modal-close", "aria-label": "Sluiten", onclick: () => closeModal() }, "×"),
+      el("h2", { id: "scan-title" }, "Kaart scannen"),
+      s.body));
+  modal = { scrim, returnFocus: document.activeElement, onClose: endScan };
+  document.body.append(scrim);
+  renderScan(true);
+  startScanCamera(s);
+  // Leesprogramma en kaartenlijst alvast laden, zodat de eerste scan sneller gaat
+  prepareOcr().catch(() => {});
+  loadScanPool().catch(() => {});
+}
+
+// Scanscherm dicht: camera uit
+function endScan() {
+  if (!scan) return;
+  stopCamera(scan.stream);
+  scan = null;
+}
+
+async function startScanCamera(s) {
+  try {
+    const stream = await startCamera(s.video);
+    if (scan !== s) return stopCamera(stream);
+    s.stream = stream;
+  } catch (err) {
+    if (scan !== s) return;
+    s.camError = err.name === "NotAllowedError" ? "Stashdex mag de camera niet gebruiken. Geef toestemming in je browser, of kies een foto."
+      : ["NotFoundError", "OverconstrainedError"].includes(err.name) ? "Geen camera gevonden. Kies een foto."
+        : `De camera start niet (${err.message}). Kies een foto.`;
+  }
+  renderScan(s.stage === "camera");
+}
+
+// Tekent het scanscherm opnieuw; focus = de hoofdknop van deze stap de focus geven
+function renderScan(focus = false) {
+  const s = scan;
+  if (!s) return;
+  const parts = s.stage === "busy" ? scanBusy() : s.stage === "result" ? [scanScope(), ...scanResult()] : [scanScope(), ...scanCamera()];
+  s.body.replaceChildren(...[...parts, scanSession()].filter(Boolean));
+  if (s.stage === "camera" && s.stream) s.video.play().catch(() => {});
+  if (focus) s.body.querySelector("[data-focus]")?.focus();
+}
+
+// Keuze Deze set | Alle sets; bij Deze set ook welke set
+function scanScope() {
+  const s = scan;
+  const sets = S.series.flatMap((g) => g.sets.map((x) => ({ value: x.id, label: x.name })));
+  return el("div", { class: "scan-scope" },
+    segmented("Zoeken in", s.scope, [{ value: "set", label: "Deze set" }, { value: "all", label: "Alle sets" }], (v) => { s.scope = v; rerankScan(); }),
+    s.scope === "set" ? select("Set", s.setId, sets, (v) => { s.setId = v; rerankScan(); }) : null);
+}
+
+// Andere set of Alle sets gekozen: bij een uitslag opnieuw zoeken met de al gelezen tekst (niet opnieuw scannen)
+function rerankScan() {
+  if (scan.stage === "result" && scan.read) rankScan().catch((err) => toast(`Zoeken mislukt: ${err.message}`));
+  else renderScan();
+}
+
+function scanCamera() {
+  const s = scan;
+  const file = el("input", { type: "file", accept: "image/*", hidden: true, onchange: (e) => {
+    const f = e.target.files[0];
+    e.target.value = "";
+    if (f) scanFile(f);
+  } });
+  const view = s.camError
+    ? el("div", { class: "scan-view scan-view-off" }, el("p", {}, s.camError))
+    : el("div", { class: "scan-view" }, s.video, s.frame, el("p", { class: "scan-hint" }, s.stream ? "Houd de kaart recht binnen het kader" : "Camera starten…"));
+  return [view,
+    el("div", { class: "scan-actions" },
+      s.camError ? null : el("button", { type: "button", class: "kk-btn kk-btn-primary scan-shoot", "data-focus": "", disabled: !s.stream, onclick: scanShot }, icon(ICONS.scan, 20), "Scan"),
+      el("button", { type: "button", class: "kk-btn kk-btn-ghost", "data-focus": s.camError ? "" : null, onclick: () => file.click() }, "Foto kiezen"),
+      file)];
+}
+
+function scanBusy() {
+  const s = scan;
+  return [el("div", { class: "scanbusy", role: "status" },
+    el("div", { class: "scanframe" }, el("img", { src: s.photo, alt: "Jouw foto" }), el("i", { class: "scanline" })),
+    el("b", {}, "Kaart herkennen…"),
+    ocrReady() ? null : el("span", {}, "De eerste keer wordt het leesprogramma geladen, dat duurt even."))];
+}
+
+// Foto uit het camerabeeld (alleen het stuk binnen het kader)
+function scanShot() {
+  const canvas = grabFrame(scan.video, scan.frame);
+  if (!canvas) return toast("De camera is nog niet klaar");
+  recognize(canvas, false);
+}
+
+async function scanFile(file) {
+  let canvas;
+  try { canvas = await fileToCanvas(file); } catch { return toast("Deze foto kan niet geopend worden"); }
+  recognize(canvas, true);
+}
+
+// Tekst lezen en de kaart zoeken; bij een gekozen foto zonder zekere uitslag ook de hele foto lezen
+async function recognize(canvas, isFile) {
+  const s = scan;
+  if (!s) return;
+  s.stage = "busy";
+  s.photo = thumbOf(canvas);
+  renderScan();
+  try {
+    s.read = await readCard(canvas);
+    if (scan !== s) return;
+    await rankScan(false);
+    if (isFile && scan === s && !s.result.sure) {
+      const all = await readWhole(canvas);
+      if (scan !== s) return;
+      s.read = { name: s.read.name + "\n" + all, number: s.read.number + "\n" + all };
+      await rankScan(false);
+    }
+    if (scan === s) { s.stage = "result"; renderScan(true); }
+  } catch (err) {
+    if (scan !== s) return;
+    s.stage = "camera";
+    renderScan(true);
+    toast(`Herkennen mislukt: ${err.message}`);
+  }
+}
+
+// Kaarten op volgorde zetten; de beste en 3 alternatieven krijgen hun volledige gegevens (plaatje, prijs, reverse holo)
+async function rankScan(show = true) {
+  const s = scan;
+  const pool = await loadScanPool();
+  if (scan !== s) return;
+  const { list, sure } = rankCards(s.scope === "set" ? pool.filter((c) => c.set === s.setId) : pool, s.read);
+  const top = list.slice(0, 4).map((x) => x.card);
+  await Promise.all([...new Set(top.map((c) => c.set))].map((id) => loadCards(id)));
+  if (scan !== s) return;
+  s.result = { sure, cards: top.map((c) => S.cardById[c.id]).filter(Boolean) };
+  s.pick = s.result.cards[0] || null;
+  s.variant = "normal";
+  if (show) { s.stage = "result"; renderScan(true); }
+}
+
+// Waar een kaart vandaan komt: set · nummer
+const scanWhere = (c) => `${S.setById[parentIdOf(c.setId)]?.name || ""} · ${numTxt(c)}`;
+
+function scanResult() {
+  const s = scan, r = s.result, c = s.pick;
+  const out = [];
+  if (!c) {
+    out.push(el("div", { class: "kk-empty scan-none" }, el("b", {}, "Niet herkend"),
+      "Probeer het opnieuw met meer licht en zonder schittering, of zoek de kaart hieronder zelf."));
+  } else {
+    const first = c === r.cards[0];
+    const have = countOf(c.rev && s.variant === "reverse" ? revOf(c) : c);
+    out.push(el("p", { class: "scan-verdict" }, first && r.sure ? "Dit is volgens mij…" : first ? "Ik weet het niet zeker. Is het deze?" : "Is het deze?"),
+      el("div", { class: "scan-compare" },
+        el("figure", {}, el("div", { class: "scanframe" }, el("img", { src: s.photo, alt: "Jouw foto" })), el("figcaption", { class: "flabel" }, "Jouw foto")),
+        el("figure", {}, el("div", { class: "scanframe" }, cardImg(c, { lazy: false })), el("figcaption", { class: "flabel" }, "In Stashdex"))),
+      el("div", { class: "scan-card" },
+        el("b", { class: "found-name" }, c.name),
+        el("span", { class: "scan-where" }, scanWhere(c)),
+        el("span", { class: "scan-facts" }, chip(c.rarity), el("span", { class: "mono scan-val" }, money(valueEur(c.rev && s.variant === "reverse" ? revOf(c) : c)) ?? "—"),
+          have ? el("span", { class: "scan-have" }, `Je hebt er al ${have}`) : null)),
+      c.rev ? el("div", { class: "modal-variant" },
+        segmented("Versie", s.variant, Object.entries(VARIANT_LABEL).map(([value, label]) => ({ value, label })), (v) => { s.variant = v; renderScan(); })) : null,
+      el("div", { class: "scan-actions" },
+        el("button", { type: "button", class: "kk-btn kk-btn-primary scan-shoot", "data-focus": "", disabled: s.saving, onclick: confirmScan }, "Ja, voeg toe"),
+        el("button", { type: "button", class: "kk-btn kk-btn-ghost", disabled: s.saving, onclick: retryScan }, "Opnieuw")));
+  }
+  const alts = r.cards.filter((x) => x !== c);
+  if (alts.length) {
+    out.push(el("div", { class: "alts" }, el("span", { class: "flabel" }, "Of is het een van deze?"),
+      alts.map((a) => el("button", { type: "button", class: "alt", onclick: () => pickScan(a) },
+        el("span", { class: "alt-art" }, cardImg(a)),
+        el("span", { class: "alt-info" }, el("b", {}, a.name), el("span", {}, scanWhere(a))),
+        chip(a.rarity)))));
+  }
+  out.push(scanSearch());
+  if (!c) out.push(el("div", { class: "scan-actions" }, el("button", { type: "button", class: "kk-btn kk-btn-primary scan-shoot", "data-focus": "", onclick: retryScan }, "Opnieuw scannen")));
+  return out;
+}
+
+// Zelf zoeken op naam of nummer, binnen de gekozen set of in alle sets
+function scanSearch() {
+  const hits = el("div", { class: "scan-hits" });
+  const input = el("input", { type: "search", class: "kk-input", placeholder: "Niet goed? Zoek op naam of nummer", "aria-label": "Zelf zoeken op naam of nummer", autocomplete: "off",
+    oninput: async (e) => {
+      const q = e.target.value, s = scan;
+      const pool = await loadScanPool().catch(() => []);
+      if (scan !== s || input.value !== q) return;
+      const list = searchCards(s.scope === "set" ? pool.filter((c) => c.set === s.setId) : pool, q);
+      hits.replaceChildren(...list.map((c) => el("button", { type: "button", class: "scan-hit", onclick: async () => {
+        await loadCards(c.set);
+        if (scan === s && S.cardById[c.id]) pickScan(S.cardById[c.id]);
+      } }, el("b", {}, c.name), el("span", {}, `${S.setById[c.set]?.name || ""} · #${c.number}`))),
+      q.trim() && !list.length ? el("p", { class: "scan-nohit" }, "Niets gevonden" + (s.scope === "set" ? " in deze set. Probeer Alle sets." : ".")) : null);
+    } });
+  return el("div", { class: "scan-search" }, input, hits);
+}
+
+function pickScan(card) {
+  scan.pick = card;
+  scan.variant = "normal";
+  renderScan(true);
+  scan.body.parentElement.scrollTop = 0; // terug naar boven, naar de gekozen kaart
+}
+
+function retryScan() {
+  scan.stage = "camera";
+  scan.photo = scan.read = scan.result = scan.pick = null;
+  renderScan(true);
+}
+
+// Kaart toevoegen (aantal + 1) en meteen door naar de volgende kaart
+async function confirmScan() {
+  const s = scan, c = s.pick, variant = c.rev ? s.variant : "normal";
+  const key = ownedKey(c.id, variant), before = S.owned[key]?.count || 0;
+  s.saving = true;
+  renderScan();
+  const error = await storeCount(c.id, variant, before + 1);
+  s.saving = false;
+  render();
+  if (error) {
+    renderScan(true);
+    return toast(`Opslaan mislukt: ${error.message}`);
+  }
+  const label = c.name + (variant === "reverse" ? " (reverse holo)" : "");
+  s.added.push({ id: c.id, variant, label });
+  toast(`${label} toegevoegd` + (before ? ` (nu ${before + 1}×)` : ""));
+  if (scan === s) retryScan();
+}
+
+// Een toegevoegde kaart weer weghalen (aantal − 1)
+async function undoScan(item, btn) {
+  const s = scan, key = ownedKey(item.id, item.variant);
+  btn.disabled = true;
+  const error = await storeCount(item.id, item.variant, Math.max(0, (S.owned[key]?.count || 0) - 1));
+  render();
+  if (error) {
+    btn.disabled = false;
+    return toast(`Ongedaan maken mislukt: ${error.message}`);
+  }
+  if (scan === s) {
+    s.added = s.added.filter((x) => x !== item);
+    renderScan();
+  }
+  toast(`${item.label} weer weggehaald`);
+}
+
+// Teller en lijstje van wat je in deze scanronde hebt toegevoegd, met ongedaan maken
+function scanSession() {
+  const s = scan, n = s.added.length;
+  if (!n) return null;
+  return el("details", { class: "scan-session", open: s.sessionOpen, ontoggle: (e) => { s.sessionOpen = e.currentTarget.open; } },
+    el("summary", {}, el("b", {}, `${n} ${n === 1 ? "kaart" : "kaarten"} toegevoegd`), el("span", {}, "bekijk")),
+    el("ul", {}, [...s.added].reverse().map((item) => el("li", {}, el("span", {}, item.label),
+      el("button", { type: "button", class: "linkbtn", "aria-label": `${item.label} ongedaan maken`, onclick: (e) => undoScan(item, e.currentTarget) }, "Ongedaan maken")))));
 }
 
 // ---------- Meldingen en kaart-kanteling ----------

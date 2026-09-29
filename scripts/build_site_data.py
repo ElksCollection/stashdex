@@ -5,6 +5,7 @@ Heeft geen internet nodig. Schrijft (niet in git, wordt bij elke publicatie opni
 - data/cards/<set-id>.json     kaarten met de laatst bekende prijs
 - data/history/<set-id>.json   prijsgeschiedenis per kaart ({"n": normaal, "r": reverse holo}), voor de grafieken
 - data/meta.json               datum van de prijzen, begin van de geschiedenis en de dollarkoers
+- data/scan.json               alle kaarten kort ([id, naam, nummer]), om een gescande kaart in alle sets te zoeken
 """
 
 import re
@@ -66,7 +67,7 @@ def main():
     for folder in ("cards", "history"):
         shutil.rmtree(DATA / folder, ignore_errors=True)
 
-    out_sets = []
+    out_sets, scan_rows = [], []
     for s in sets:
         cards = sorted(read_json(CATALOG / "cards" / f"{s['id']}.json", []), key=lambda c: number_key(c.get("localId")))
         if not cards:
@@ -95,6 +96,7 @@ def main():
             if not card["img"] and str(extra.get("img", "")).startswith(OVERRIDE_HOSTS):
                 card["img"], card["imgLarge"] = extra["img"], extra.get("imgLarge") or extra["img"]
             site_cards.append({k: v for k, v in card.items() if v not in (None, [], "")})
+            scan_rows.append([card["id"], card["name"], card["number"]])
             # Per dag dezelfde keuze als de prijzen hierboven: n = normale versie, r = reverse holo
             pairs = [snap.get(pid) or [None, None] for snap in snapshots]
             normal = [(p[0] if has_rev else (p[0] or p[1])) for p in pairs]
@@ -113,6 +115,7 @@ def main():
         }.items() if v is not None})
 
     write_json(DATA / "sets.json", out_sets)
+    write_json(DATA / "scan.json", scan_rows)
     # Dollarkoers van de ECB (zie update_rates.py); ontbreekt die, dan gebruikt de site een reservekoers
     rate = read_json(PRICES / "koers.json", {}) or {}
     write_json(DATA / "meta.json", {
