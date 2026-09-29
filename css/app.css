@@ -251,3 +251,68 @@ button.lrow:hover{background:var(--bg)}
 .coll-worth b{color:var(--red)}
 /* Lang woord ("Instellingen") past met iets kleinere letters netjes in de knop */
 .rail-btn-long span{font-size:9.5px;letter-spacing:-.2px}
+
+/* ---------- Telefoon (tot 560px): menu onderin, 2 kaarten per rij, compacte header ---------- */
+/* De knop "Meer" en het Meer-vel bestaan alleen op de telefoon */
+.rail-more{display:none}
+.more-sheet{position:fixed;inset:0;z-index:55;display:flex;align-items:flex-end;background:var(--overlay);backdrop-filter:blur(3px);animation:kk-fade .2s ease both}
+.more-sheet[hidden]{display:none}
+.more-panel{width:100%;box-sizing:border-box;background:var(--paper);border-radius:22px 22px 0 0;padding:10px 12px calc(16px + env(safe-area-inset-bottom));box-shadow:var(--shadow-lift);animation:kk-pop .3s var(--kk-spring) both}
+.more-grip{width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 10px}
+.more-item{display:flex;align-items:center;gap:14px;width:100%;min-height:52px;padding:0 12px;border:none;border-radius:14px;background:none;font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--ink);text-align:left;cursor:pointer}
+.more-item:hover,.more-item:focus-visible{background:var(--bg);outline:none}
+.more-item svg{color:var(--ink-soft)}
+@media (prefers-reduced-motion: reduce){.more-sheet,.more-panel{animation:none}}
+
+@media (max-width: 560px){
+  /* Header: één regel, logo + naam links, €/$ rechts */
+  .slimbar{flex-wrap:nowrap;justify-content:space-between;gap:8px;margin:0 8px;padding:8px 10px;min-height:0;border-radius:0 0 18px 18px}
+  .slim-brand{flex-wrap:nowrap;gap:8px;padding:5px 12px 5px 8px;border-radius:14px}
+  .slim-brand .sdx-logo{width:32px;height:32px;margin:0}
+  .slim-title{font-size:22px}
+  .slim-sub{display:none}
+  .slim-cur .kk-seg button{min-width:42px;min-height:40px}
+
+  /* Indeling: rijen niet uitrekken; ruimte onderin voor het menu; setpaneel alleen bij Collectie */
+  .layout{align-content:start;padding:0 12px calc(104px + env(safe-area-inset-bottom));gap:12px}
+  .layout:not([data-nav="collection"]) .setpanel{display:none}
+
+  /* Menu als vaste balk onderin: Start · Collectie · Scan · Wensen · Meer */
+  .rail{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:40;flex-direction:row;justify-content:space-around;align-items:flex-end;overflow:visible;padding:6px 4px;gap:0;border-radius:22px;box-shadow:0 -2px 0 var(--line),0 12px 30px -6px rgba(11,36,71,.45)}
+  .rail .mark-btn,.rail .rail-sep,.rail .rail-spacer,
+  .rail [data-nav="binders"],.rail [data-nav="stats"],.rail [data-nav="settings"],.rail [data-nav="logout"]{display:none}
+  .rail-btn{flex:1 1 0;width:auto;min-width:0;min-height:54px;padding:7px 0 6px;font-size:11px;border-radius:16px}
+  .rail [data-nav="home"]{order:1}
+  .rail [data-nav="collection"]{order:2}
+  .scan-btn{order:3;flex:none;width:62px;height:62px;margin:-26px 6px 0;border:4px solid var(--paper);box-sizing:content-box}
+  .rail [data-nav="wish"]{order:4}
+  .rail-more{order:5;display:flex}
+
+  /* Kaarten: 2 per rij, gegevens iets compacter zodat alles past */
+  .kk-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .kk-grid .kk-card-info{padding:8px 8px 9px;gap:5px}
+  .kk-grid .kk-card-name{font-size:14px}
+  .kk-grid .kk-card-facts{gap:0 6px}
+  .kk-grid .kk-fact i{font-size:8px;letter-spacing:.4px}
+  .kk-grid .kk-fact b{font-size:10.5px;letter-spacing:-.4px}
+  .kk-grid .kk-type-tag{font-size:10px;padding:2px 7px 2px 5px}
+  .kk-grid .kk-missing-tag,.kk-grid .kk-owned{font-size:9px}
+
+  /* Setkop: topkaart kleiner, nummer 2 t/m 4 als veegrij */
+  .feat{margin:4px 0 0}
+  .feat-card{width:132px}
+  .podium{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:78%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -12px;padding:12px 12px 8px 20px;scroll-padding-left:20px;scrollbar-width:none}
+  .podium>*{scroll-snap-align:start}
+  .podium::-webkit-scrollbar{display:none}
+
+  /* Kaartdetail: vel dat van onderen omhoog komt, niets buiten beeld */
+  .kk-scrim{align-items:flex-end;padding:0}
+  .kk-modal{max-width:none;border-radius:22px 22px 0 0;max-height:92vh;padding:20px 16px calc(20px + env(safe-area-inset-bottom))}
+  .kk-modal-art{width:170px}
+  .stepper-wrap{flex-wrap:wrap;row-gap:10px}
+
+  /* Grotere tikvlakken (minstens 40px) */
+  .podium-head .kk-seg button{padding:10px 12px}
+  .series{min-height:44px}
+  .kk-tab{min-height:40px}
+}

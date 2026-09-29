@@ -47,6 +47,7 @@ const ICONS = {
   filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
   collapse: '<path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/>',
   expand: '<path d="m13 17 5-5-5-5M6 17l5-5-5-5"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
 };
 
 // Het Stashdex-logo: schuine kaart met holo-binnenkant, gele S en sterretje.
@@ -374,7 +375,7 @@ function buildShell() {
 
   // Menubalk: logo, Scan, Start · Collectie · Wensen · Statistiek, Uitloggen
   ui.rail = {};
-  const railBtn = (key, label, extra = "") => (ui.rail[key] = el("button", { type: "button", class: `rail-btn ${extra}`.trim(), onclick: () => go(key) }, icon(ICONS[key]), el("span", {}, label)));
+  const railBtn = (key, label, extra = "") => (ui.rail[key] = el("button", { type: "button", class: `rail-btn ${extra}`.trim(), "data-nav": key, onclick: () => go(key) }, icon(ICONS[key]), el("span", {}, label)));
   const rail = el("nav", { class: "rail", "aria-label": "Hoofdmenu" },
     el("button", { type: "button", class: "mark-btn", "aria-label": "Intro opnieuw afspelen", onclick: () => toast("De intro komt in stap 4") }, logo(52)),
     el("button", { type: "button", class: "scan-btn", "aria-label": "Kaart scannen", onclick: () => toast("Scannen komt in stap 5") }, icon(ICONS.scan, 24), el("span", {}, "Scan")),
@@ -382,7 +383,8 @@ function buildShell() {
     railBtn("home", "Start"), railBtn("collection", "Collectie"), railBtn("binders", "Binders"), railBtn("wish", "Wensen"), railBtn("stats", "Statistiek"),
     el("span", { class: "rail-spacer" }),
     railBtn("settings", "Instellingen", "rail-btn-long"),
-    el("button", { type: "button", class: "rail-btn", onclick: () => supabase.auth.signOut() }, icon(ICONS.logout), el("span", {}, "Uitloggen")));
+    el("button", { type: "button", class: "rail-btn", "data-nav": "logout", onclick: () => supabase.auth.signOut() }, icon(ICONS.logout), el("span", {}, "Uitloggen")),
+    ui.more = el("button", { type: "button", class: "rail-btn rail-more", "aria-haspopup": "dialog", "aria-expanded": "false", onclick: openMore }, icon(ICONS.more), el("span", {}, "Meer")));
 
   // Setpaneel: zoeken, sets per serie, "+ Editie toevoegen"
   ui.search = el("input", { type: "search", class: "kk-input", placeholder: "Zoek een set of kaart…", "aria-label": "Zoek een set of kaart", autocomplete: "off",
@@ -402,7 +404,7 @@ function buildShell() {
   ui.panel = panel;
   ui.layout = el("div", { class: "layout" }, rail, panel, ui.main);
   $("home").replaceChildren(hero, ui.layout);
-  setPanel(pref.get("panel", true), false);
+  setPanel(pref.get("panel", !matchMedia("(max-width: 560px)").matches), false);
 }
 
 // Setpaneel in- of uitklappen; de keuze wordt per apparaat onthouden
@@ -415,6 +417,8 @@ function setPanel(open, focus = true) {
 
 function render() {
   if (!ui.main || !S.userId) return;
+  ui.layout.dataset.nav = S.nav;
+  ui.more.classList.toggle("on", ["binders", "stats", "settings"].includes(S.nav));
   const bySet = ownedBySet();
   const setsWith = Object.keys(bySet).length, ownedCards = Object.keys(S.owned).length;
   ui.heroSub.textContent = `${setsWith} ${setsWith === 1 ? "set" : "sets"} · ${ownedCards} kaarten`;
@@ -635,6 +639,30 @@ function go(nav) {
   if (nav === "collection") loadCards(S.setId);
 }
 
+// ---------- Meer-vel (alleen op de telefoon): Binders, Statistiek, Instellingen, Uitloggen ----------
+let moreSheet = null;
+
+function openMore() {
+  const item = (key, label, action) => el("button", { type: "button", class: "more-item", onclick: () => { closeMore(); action(); } }, icon(ICONS[key]), label);
+  moreSheet = el("div", { class: "more-sheet", role: "dialog", "aria-modal": "true", "aria-label": "Meer", onclick: (e) => { if (e.target === moreSheet) closeMore(); } },
+    el("div", { class: "more-panel" }, el("div", { class: "more-grip" }),
+      item("binders", "Binders", () => go("binders")),
+      item("stats", "Statistiek", () => go("stats")),
+      item("settings", "Instellingen", () => go("settings")),
+      item("logout", "Uitloggen", () => supabase.auth.signOut())));
+  document.body.append(moreSheet);
+  ui.more.setAttribute("aria-expanded", "true");
+  moreSheet.querySelector(".more-item").focus();
+}
+
+function closeMore() {
+  if (!moreSheet) return;
+  moreSheet.remove();
+  moreSheet = null;
+  ui.more.setAttribute("aria-expanded", "false");
+  ui.more.focus();
+}
+
 function pickSet(id) {
   S.nav = "collection";
   S.setId = id;
@@ -825,7 +853,7 @@ function toast(message) {
 }
 window.addEventListener("stashdex-toast", (e) => toast(e.detail));
 
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { closeModal(); closeMore(); } });
 
 // Kaarten kantelen naar de muis toe, met een holo-glans die meebeweegt
 const TILT = ".kk-card:not(.kk-card-missing), .kk-modal-art";
