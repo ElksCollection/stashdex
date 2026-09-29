@@ -11,6 +11,7 @@ Schrijft data/catalog/sets.json en data/catalog/cards/<set-id>.json.
 Gebruik:
     python scripts/update_catalog.py            # normale nachtelijke ronde
     python scripts/update_catalog.py sv01 30th  # alleen deze sets (opnieuw) ophalen
+    python scripts/update_catalog.py alle       # alle sets opnieuw ophalen (duurt enkele minuten)
 """
 
 import re
@@ -65,6 +66,8 @@ def compact_card(card):
         "types": card.get("types") or [],
         "image": asset(card.get("image")),
         "cm": main_product(card),
+        # Bestaat er ook een reverse holo-versie? (die is in Stashdex een aparte kaart)
+        "rev": True if (card.get("variants") or {}).get("reverse") else None,
     }
     return {k: v for k, v in out.items() if v not in (None, [], "")}
 
@@ -98,11 +101,15 @@ def update_set(set_id, old_cards):
 
     def one(brief):
         try:
-            card = compact_card(api(f"cards/{brief['id']}"))
+            full = api(f"cards/{brief['id']}")
+            card, known = compact_card(full), old.get(brief["id"], {})
             # TCGdex laat het Cardmarket-nummer soms even weg (bv. tijdens het verversen van hun prijzen);
             # dan het bekende nummer houden, anders verdwijnt de prijs van de kaart
-            if "cm" not in card and old.get(brief["id"], {}).get("cm"):
-                card["cm"] = old[brief["id"]]["cm"]
+            if "cm" not in card and known.get("cm"):
+                card["cm"] = known["cm"]
+            # Zelfde voor de versies: ontbreekt dat veld helemaal, dan het bekende houden
+            if full.get("variants") is None and known.get("rev"):
+                card["rev"] = True
             return card, True
         except RuntimeError as err:
             print(f"  kaart {brief['id']} mislukt: {err}", flush=True)
@@ -136,7 +143,7 @@ def main(only):
         return None
 
     if only:
-        todo = [(i, "gevraagd") for i in listed if i in only]
+        todo = [(i, "gevraagd") for i in listed if i in only or "alle" in only]
     else:
         todo = [(i, r) for i in listed if (r := due(i))]
         # Rouleren: de oudst gecontroleerde sets eerst, een paar per nacht
