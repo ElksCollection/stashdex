@@ -98,7 +98,12 @@ def update_set(set_id, old_cards):
 
     def one(brief):
         try:
-            return compact_card(api(f"cards/{brief['id']}")), True
+            card = compact_card(api(f"cards/{brief['id']}"))
+            # TCGdex laat het Cardmarket-nummer soms even weg (bv. tijdens het verversen van hun prijzen);
+            # dan het bekende nummer houden, anders verdwijnt de prijs van de kaart
+            if "cm" not in card and old.get(brief["id"], {}).get("cm"):
+                card["cm"] = old[brief["id"]]["cm"]
+            return card, True
         except RuntimeError as err:
             print(f"  kaart {brief['id']} mislukt: {err}", flush=True)
             return old.get(brief["id"]) or brief_card(brief), False

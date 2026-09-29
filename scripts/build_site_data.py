@@ -4,7 +4,7 @@ Heeft geen internet nodig. Schrijft (niet in git, wordt bij elke publicatie opni
 - data/sets.json               alle sets, met hoofdset/subset-koppeling
 - data/cards/<set-id>.json     kaarten met de laatst bekende prijs
 - data/history/<set-id>.json   prijsgeschiedenis per kaart, voor de grafieken
-- data/meta.json               datum van de prijzen en begin van de geschiedenis
+- data/meta.json               datum van de prijzen, begin van de geschiedenis en de dollarkoers
 """
 
 import re
@@ -106,10 +106,14 @@ def main():
         }.items() if v is not None})
 
     write_json(DATA / "sets.json", out_sets)
+    # Dollarkoers van de ECB (zie update_rates.py); ontbreekt die, dan gebruikt de site een reservekoers
+    rate = read_json(PRICES / "koers.json", {}) or {}
     write_json(DATA / "meta.json", {
         "builtAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "pricesDate": dates[-1] if dates else None,
         "historyStart": dates[0] if dates else None,
+        "eurUsd": rate.get("eurUsd"),
+        "rateDate": rate.get("date"),
     })
     print(f"Klaar: {len(out_sets)} sets, prijzen van {dates[-1] if dates else 'nog geen'}, "
           f"geschiedenis {len(dates)} {'dag' if len(dates) == 1 else 'dagen'}")

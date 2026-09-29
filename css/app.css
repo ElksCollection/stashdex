@@ -29,7 +29,8 @@ body{padding:0}
 .slim-brand{position:relative;z-index:1;display:flex;align-items:center;gap:12px;background:var(--paper);border-radius:16px;padding:8px 22px 9px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line)}
 .slim-title{margin:0;font-family:var(--font-title);font-weight:400;font-size:30px;line-height:1;letter-spacing:.3px;background:linear-gradient(180deg,var(--gold-bright) 10%,var(--gold) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .slim-sub{font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap}
-.slim-cur{position:absolute;right:24px;top:50%;transform:translateY(-50%);z-index:2}
+.slim-cur{position:absolute;right:24px;top:50%;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:3px}
+.rate-note{font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.3px;color:var(--on-page);opacity:.75;white-space:nowrap}
 
 /* Kaartwaaier: je 6 waardevolste kaarten, 3 links en 3 rechts */
 .fan{position:relative;z-index:1;display:flex;align-items:center;height:72px}
@@ -180,6 +181,11 @@ button.lrow:hover{background:var(--bg)}
   .slim-brand{flex-wrap:wrap;justify-content:center;row-gap:4px}
   .slim-sub{width:100%;text-align:center}
 }
+
+/* ---------- Instellingen ---------- */
+.settings-box{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:18px;padding:20px 22px;background:var(--paper);border-radius:var(--radius-20);box-shadow:var(--shadow-raised)}
+.settings-box h3{margin:0;font-family:var(--font-display);font-size:19px;color:var(--ink)}
+.settings-box p{margin:0;max-width:60ch;font-size:14.5px;line-height:1.5;color:var(--ink-soft)}
 
 /* ---------- Kaart zonder afbeelding ---------- */
 .no-art{display:grid;place-items:center;aspect-ratio:5/7;width:100%;box-sizing:border-box;padding:10px;background:repeating-linear-gradient(135deg,var(--bg) 0 10px,var(--paper) 10px 20px);color:var(--ink-soft);font-family:var(--font-display);font-weight:800;font-size:13px;text-align:center;line-height:1.2}

@@ -3,7 +3,9 @@ import { supabase, safe } from "./supabase-client.js";
 import { startAuth } from "./auth.js";
 import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES } from "./rarity.js";
 
-const EUR_PER_USD = 0.87; // vaste koers van 22-09-2026; prijzen in de data zijn in euro's (Cardmarket), dollars worden omgerekend
+// Prijzen in de data zijn in euro's (Cardmarket); dollars worden omgerekend met de ECB-koers uit data/meta.json.
+// Reservekoers (22-09-2026) alleen voor als meta.json niet laadt.
+const FALLBACK_EUR_USD = 1 / 0.87;
 const PAGE = 20; // aantal kaarten per "Toon meer"
 // Letters voor de kaartnummers van een subset (als die alleen cijfers zijn)
 const PART_CODES = { "Classic Collection": "CC" };
@@ -82,6 +84,7 @@ const S = {
   history: {},                        // per set-id: belofte met de prijsgeschiedenis uit data/history/<id>.json
   cardById: {},                       // alle geladen kaarten op kaart-id (voor de kaartwaaier)
   owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count, raw_value_usd }
+  rate: { eurUsd: FALLBACK_EUR_USD, date: null },  // 1 euro = eurUsd dollar; date = dag van de ECB-koers
   nav: "collection",
   setId: pref.get("set", "30th"),
   view: pref.get("view", "cards"),
@@ -100,7 +103,7 @@ const countOf = (cardId) => S.owned[cardId]?.count || 0;
 // Eigen waarde gaat voor (opgeslagen in dollars); anders de marktprijs (euro's) uit de nachtelijke data
 function valueEur(card) {
   const own = S.owned[card.id]?.raw_value_usd;
-  return own != null ? own * EUR_PER_USD : card.eur ?? null;
+  return own != null ? own / S.rate.eurUsd : card.eur ?? null;
 }
 // Totaal van een hoofdset inclusief zijn subsets
 const setTotal = (set) => S.cards[set.id]?.length || (S.subsets[set.id] || []).reduce((n, s) => n + (s.total || 0), set.total || 0);
@@ -112,7 +115,7 @@ const numTxt = (card) => {
 
 function money(eur) {
   if (eur == null) return null;
-  const n = S.cur === "EUR" ? eur : eur / EUR_PER_USD;
+  const n = S.cur === "EUR" ? eur : eur * S.rate.eurUsd;
   const big = n >= 1000;
   const digits = big ? 0 : 2;
   return (S.cur === "EUR" ? "€" : "$") + " " + n.toLocaleString("nl-NL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -161,6 +164,16 @@ async function loadSets() {
   } catch (err) {
     S.setsError = `De lijst met sets kon niet geladen worden (${err.message}).`;
   }
+}
+
+// Dollarkoers van de ECB ophalen; lukt dat niet, dan blijft de reservekoers staan
+async function loadRate() {
+  try {
+    const res = await fetch("data/meta.json", { cache: "no-cache" });
+    if (!res.ok) return;
+    const meta = await res.json();
+    if (meta.eurUsd > 0) S.rate = { eurUsd: meta.eurUsd, date: meta.rateDate || null };
+  } catch { /* reservekoers blijft staan */ }
 }
 
 // Kaarten van een set ophalen; een set die al onderweg is wordt niet dubbel opgehaald
@@ -424,7 +437,9 @@ function render() {
   ui.heroSub.textContent = `${setsWith} ${setsWith === 1 ? "set" : "sets"} · ${ownedCards} kaarten`;
   ui.cur.replaceChildren(segmented("Valuta", S.cur, [{ value: "USD", label: "$" }, { value: "EUR", label: "€" }], (v) => {
     S.cur = v; pref.set("cur", v); render();
-  }));
+  }), ...(S.cur === "USD" && S.rate.date
+    ? [el("span", { class: "rate-note" }, "Koers van " + new Date(S.rate.date + "T12:00").toLocaleDateString("nl-NL", { day: "numeric", month: "short" }))]
+    : []));
   for (const [key, btn] of Object.entries(ui.rail)) btn.classList.toggle("on", S.nav === key);
   renderFan();
   renderSeries(bySet);
@@ -491,15 +506,48 @@ function navItem(set, owned) {
 // Schermen die in een volgende stap gebouwd worden
 const LATER = {
   home: ["Welkom terug", "Start", "Het startscherm met je tegels, \"Bezig met\" en je waardevolste kaarten komt in stap 2."],
-  settings: ["Instellingen", "Stashdex naar jouw smaak", "Hier kun je straks Stashdex instellen, bijvoorbeeld of een kaart in meerdere binders tegelijk mag. Instellingen komen later."],
   binders: ["Binders", "Je eigen binders, net als in het echt", "Hier maak je straks je eigen binders met sleeves of toploaders en kies je een kaft. Binders komen in stap 7."],
   wish: ["Wensenlijst", "Nog niet gebouwd", "De wensenlijst komt in stap 3, samen met het vernieuwde kaartdetail."],
   stats: ["Statistiek", "Je hele collectie in cijfers", "Statistiek komt in stap 2."],
 };
 
+// ---------- Instellingen: voorlopig alleen de back-up van je collectie ----------
+function renderSettings() {
+  return [pageTitle("Instellingen", "Stashdex naar jouw smaak"),
+    el("section", { class: "settings-box" },
+      el("h3", {}, "Back-up van je collectie"),
+      el("p", {}, "Download al je kaarten als bestand (CSV). Je kunt het openen in Excel of Google Spreadsheets en bewaren als extra back-up."),
+      el("button", { type: "button", class: "kk-btn kk-btn-primary", onclick: downloadCollection }, "Download mijn collectie (CSV)")),
+    emptyState("Komt eraan", "Meer instellingen, bijvoorbeeld of een kaart in meerdere binders tegelijk mag, komen later.")];
+}
+
+// Maakt het CSV-bestand in de browser (puntkomma's en decimale komma's, zoals Nederlandse Excel verwacht)
+async function downloadCollection(e) {
+  const btn = e.currentTarget;
+  if (!S.ownedLoaded) return toast("Je collectie wordt nog geladen, probeer het zo nog eens");
+  btn.disabled = true;
+  try {
+    await loadOwnedSets(); // namen en marktprijzen van alle sets waar je kaarten van hebt
+    const cell = (v) => { const s = v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : String(v); return /[;"\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s; };
+    const rows = Object.entries(S.owned).sort(([a], [b]) => a.localeCompare(b, "nl", { numeric: true })).map(([id, o]) => {
+      const card = S.cardById[id];
+      return [id, card?.name, S.setById[setIdOf(id)]?.name, card?.number, o.count, o.raw_value_usd, o.raw_value_usd != null ? "USD" : null, card?.eur];
+    });
+    const lines = [["card_id", "naam", "set", "nummer", "aantal", "eigen_waarde", "valuta", "marktprijs_eur"], ...rows].map((r) => r.map(cell).join(";"));
+    // BOM vooraan, zodat Excel de é van Pokémon goed toont
+    const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+    el("a", { href: url, download: `stashdex-collectie-${new Date().toLocaleDateString("sv-SE")}.csv` }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(`${rows.length} kaarten gedownload`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function renderMain(bySet) {
   const out = [];
   if (S.ownedError) out.push(emptyState("Er ging iets mis", S.ownedError));
+  if (S.nav === "settings") return [...out, ...renderSettings()];
   if (S.nav !== "collection") {
     const [title, sub, text] = LATER[S.nav];
     return [...out, pageTitle(title, sub), emptyState("Komt eraan", text)];
@@ -881,7 +929,7 @@ async function enter(session) {
   S.userId = session.user.id;
   buildShell();
   render();
-  await Promise.all([loadSets(), loadOwned()]);
+  await Promise.all([loadSets(), loadOwned(), loadRate()]);
   if (S.userId !== session.user.id) return; // intussen uitgelogd
   // Kaarten met een id die niet (meer) bij een set hoort (bv. oude pokemontcg-id's) niet meetellen
   if (S.sets.length) for (const id of Object.keys(S.owned)) if (!S.setById[setIdOf(id)]) delete S.owned[id];

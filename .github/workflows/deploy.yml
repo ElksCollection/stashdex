@@ -1,4 +1,4 @@
-# Werkt elke nacht de kaartcatalogus (TCGdex) en de prijzen (Cardmarket) bij en zet de website online.
+# Werkt elke nacht de kaartcatalogus (TCGdex), de prijzen (Cardmarket) en de dollarkoers (ECB) bij en zet de website online.
 # Bij een gewone wijziging in de code wordt de website alleen opnieuw opgebouwd en online gezet.
 name: Kaartdata ophalen en website publiceren
 
@@ -45,6 +45,24 @@ jobs:
         if: github.event_name != 'push'
         continue-on-error: true
         run: python scripts/update_prices.py
+
+      - name: Dollarkoers van vandaag ophalen (ECB)
+        id: rates
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: python scripts/update_rates.py
+
+      # Gratis Supabase-projecten pauzeren na een week zonder activiteit; één klein verzoek per nacht voorkomt dat.
+      # Zonder inlog weigert de database (401), maar dat antwoord komt van de database zelf en telt dus als activiteit.
+      - name: Supabase wakker houden
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+            -H "apikey: sb_publishable_y9pL7nfJLtZPdwTtQa5WTg_ewt3OtEj" \
+            "https://iffsbsywjzmcmxsjhikd.supabase.co/rest/v1/collection?select=card_id&limit=1")
+          echo "Supabase antwoordde met $code"
+          [ "$code" = "200" ] || [ "$code" = "401" ]
 
       - name: Nieuwe gegevens opslaan in de codemap
         if: github.event_name != 'push'
