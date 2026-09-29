@@ -47,5 +47,13 @@ de map openen via een lokale webserver (`python -m http.server`).
 
 ## Gebruik
 Open het webadres hierboven in de browser op laptop of telefoon.
-Wijzigingen in deze map worden via GitHub automatisch binnen ongeveer een
-minuut live gezet.
+
+## Werkwijze met branches
+- Bouwen gebeurt op de branch **`werk`**; na elke afgeronde stap committen en
+  pushen. Daar gaat niets van live.
+- Alleen **`main`** wordt gepubliceerd (en daar slaat de nachtelijke ronde de
+  kaartdata en prijzen op).
+- Is een stap af en getest op laptop én telefoon: eerst `main` in `werk`
+  samenvoegen (`git merge origin/main`), daarna `main` bijwerken met
+  `git switch main && git merge --ff-only werk && git push` en terug naar
+  `werk`. Binnen ongeveer een minuut staat het live.
