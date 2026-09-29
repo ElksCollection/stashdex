@@ -1,0 +1,14 @@
+# Laat GitHub (Dependabot) elke week controleren of er nieuwe versies zijn van de hulpmiddelen in de workflows.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    # Alle updates samen in één voorstel, zodat we ze in één keer testen
+    groups:
+      github-hulpmiddelen:
+        patterns: ["*"]
+    commit-message:
+      prefix: "GitHub-hulpmiddelen"
