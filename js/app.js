@@ -465,17 +465,15 @@ function miniCard(card, place) {
 const ui = {};
 
 function buildShell() {
-  // Slanke holo-header: kaartwaaier · logo + naam · kaartwaaier, valuta rechts
+  // Slanke holo-header: kaartwaaier · logo + naam · kaartwaaier (valuta staat alleen in Instellingen)
   ui.heroSub = el("span", { class: "slim-sub" });
-  ui.cur = el("div", { class: "slim-cur" });
   ui.fanLeft = el("div", { class: "fan fan-left", "aria-label": "Uitgelicht uit je collectie" });
   ui.fanRight = el("div", { class: "fan fan-right", "aria-label": "Uitgelicht uit je collectie" });
   ui.fanKey = null;
   const hero = el("header", { class: "slimbar kk-hero" },
     ui.fanLeft,
     el("div", { class: "slim-brand" }, logo(40, "slim-logo"), el("h1", { class: "slim-title" }, "Stashdex"), ui.heroSub),
-    ui.fanRight,
-    ui.cur);
+    ui.fanRight);
 
   // Menubalk: logo, Scan, Start · Collectie · Wensen · Statistiek, Uitloggen
   ui.rail = {};
@@ -526,11 +524,6 @@ function render() {
   const bySet = ownedBySet();
   const setsWith = Object.keys(bySet).length, ownedCards = Object.keys(S.owned).length;
   ui.heroSub.textContent = `${setsWith} ${setsWith === 1 ? "set" : "sets"} · ${ownedCards} kaarten`;
-  ui.cur.replaceChildren(segmented("Valuta", S.cur, [{ value: "USD", label: "$" }, { value: "EUR", label: "€" }], (v) => {
-    setSetting("cur", v); render();
-  }), ...(S.cur === "USD" && S.rate.date
-    ? [el("span", { class: "rate-note" }, "Koers van " + new Date(S.rate.date + "T12:00").toLocaleDateString("nl-NL", { day: "numeric", month: "short" }))]
-    : []));
   for (const [key, btn] of Object.entries(ui.rail)) btn.classList.toggle("on", S.nav === key);
   renderFan();
   renderSeries(bySet);
@@ -646,7 +639,8 @@ function renderSettings() {
       settingRow("Download mijn collectie", "Al je kaarten als bestand (CSV), te openen in Excel of Google Spreadsheets. Handig als extra back-up.",
         el("button", { type: "button", class: "kk-btn kk-btn-ghost", onclick: downloadCollection }, "Download (CSV)"))),
     settingsGroup("Weergave",
-      settingRow("Valuta", "Prijzen komen in euro's van Cardmarket; dollars worden omgerekend met de koers van de ECB.",
+      settingRow("Valuta", "Prijzen komen in euro's van Cardmarket; dollars worden omgerekend met de koers van de ECB."
+        + (S.cur === "USD" && S.rate.date ? " Koers van " + dateTxt(S.rate.date) + "." : ""),
         segmented("Valuta", S.cur, [{ value: "EUR", label: "€" }, { value: "USD", label: "$" }], (v) => changeSetting("cur", v))),
       settingRow("Weergave van kaarten", "Dezelfde keuze als boven de kaarten.",
         segmented("Weergave van kaarten", S.view, VIEW_OPTIONS, (v) => changeSetting("view", v))),

@@ -23,14 +23,12 @@ body{padding:0}
 
 /* ---------- App-indeling: header, menubalk, setpaneel, hoofdvlak ---------- */
 .app{height:100vh;display:flex;flex-direction:column;gap:18px;box-sizing:border-box}
-/* Slanke holo-header: waaier · merk · waaier, valuta rechts */
+/* Slanke holo-header: waaier · merk · waaier */
 .slimbar{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:0 16px;padding:6px 24px;border-radius:0 0 22px 22px;overflow:visible;min-height:84px;box-sizing:border-box;z-index:5}
 .slimbar::before{border-radius:0 0 22px 22px}
 .slim-brand{position:relative;z-index:1;display:flex;align-items:center;gap:12px;background:var(--paper);border-radius:16px;padding:8px 22px 9px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line)}
 .slim-title{margin:0;font-family:var(--font-title);font-weight:400;font-size:30px;line-height:1;letter-spacing:.3px;background:linear-gradient(180deg,var(--gold-bright) 10%,var(--gold) 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .slim-sub{font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap}
-.slim-cur{position:absolute;right:24px;top:50%;transform:translateY(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:3px}
-.rate-note{font-family:var(--font-mono);font-size:9.5px;font-weight:700;letter-spacing:.3px;color:var(--on-page);opacity:.75;white-space:nowrap}
 
 /* Kaartwaaier: je 6 waardevolste kaarten, 3 links en 3 rechts */
 .fan{position:relative;z-index:1;display:flex;align-items:center;height:72px}
@@ -155,10 +153,9 @@ button.lrow:hover{background:var(--bg)}
 /* ---------- Kleinere schermen: alles onder elkaar, pagina scrollt als geheel ---------- */
 @media (max-width: 900px){
   .app{height:auto;min-height:100vh}
-  /* Header: geen waaier, merk en valuta gecentreerd naast/onder elkaar */
+  /* Header: geen waaier, merk gecentreerd */
   .slimbar{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;padding:12px 16px}
   .fan{display:none}
-  .slim-cur{position:static;transform:none}
   .sethead{grid-template-columns:minmax(0,1fr)}
   .layout{grid-template-columns:minmax(0,1fr);padding:0 16px 24px;gap:14px}
   .rail{flex-direction:row;overflow-x:auto;padding:8px;gap:6px}
@@ -281,13 +278,12 @@ button.lrow:hover{background:var(--bg)}
 @media (prefers-reduced-motion: reduce){.more-sheet,.more-panel{animation:none}}
 
 @media (max-width: 560px){
-  /* Header: één regel, logo + naam links, €/$ rechts */
-  .slimbar{flex-wrap:nowrap;justify-content:space-between;gap:8px;margin:0 8px;padding:8px 10px;min-height:0;border-radius:0 0 18px 18px}
+  /* Header: één regel, logo + naam in het midden */
+  .slimbar{flex-wrap:nowrap;justify-content:center;gap:8px;margin:0 8px;padding:8px 10px;min-height:0;border-radius:0 0 18px 18px}
   .slim-brand{flex-wrap:nowrap;gap:8px;padding:5px 12px 5px 8px;border-radius:14px}
   .slim-brand .sdx-logo{width:32px;height:32px;margin:0}
   .slim-title{font-size:22px}
   .slim-sub{display:none}
-  .slim-cur .kk-seg button{min-width:42px;min-height:40px}
 
   /* Indeling: rijen niet uitrekken; ruimte onderin voor het menu; setpaneel alleen bij Collectie */
   .layout{align-content:start;padding:0 12px calc(104px + env(safe-area-inset-bottom));gap:12px}
