@@ -92,6 +92,7 @@ const S = {
   setId: pref.get("set", "30th"),
   view: pref.get("view", "cards"),
   sort: pref.get("sort", "number"),
+  sortRev: pref.get("sortRev", false),   // true = omgekeerde volgorde (alleen bij Nummer, Alfabet en Waarde)
   cur: pref.get("cur", "EUR"),
   period: pref.get("period", "1M"),
   // Uitgelichte kaarten (waaier, topkaart, top 4): op zeldzaamheid (dan waarde) of op waarde (dan zeldzaamheid)
@@ -107,7 +108,7 @@ const S = {
 
 // ---------- Instellingen: lokaal (pref, snel) en in Supabase (mee naar elk apparaat) ----------
 // [sleutel in Supabase/pref, veld in S]; Supabase is de baas: bij het inloggen overschrijft die de lokale waarden
-const SYNCED = [["featBy", "featBy"], ["cur", "cur"], ["view", "view"], ["sort", "sort"], ["showMissing", "showMissing"],
+const SYNCED = [["featBy", "featBy"], ["cur", "cur"], ["view", "view"], ["sort", "sort"], ["sortRev", "sortRev"], ["showMissing", "showMissing"],
   ["motion", "motion"], ["theme", "theme"], ["set", "setId"], ["period", "period"]];
 const fieldOf = Object.fromEntries(SYNCED);
 
@@ -530,12 +531,14 @@ function render() {
   ui.main.replaceChildren(...renderMain(bySet));
 }
 
-// Keuzes die op meerdere plekken terugkomen (werkbalk én Instellingen)
+// Keuzes voor de werkbalk boven de kaarten (weergave en sorteren staan bewust niet in Instellingen)
 const VIEW_OPTIONS = [{ value: "cards", label: "Kaarten" }, { value: "list", label: "Lijst" }, { value: "grid", label: "Raster" }];
 const SORT_OPTIONS = [
-  { value: "number", label: "Nummer" }, { value: "name", label: "Alfabet (A-Z)" }, { value: "value", label: "Waarde (hoog → laag)" },
+  { value: "number", label: "Nummer" }, { value: "name", label: "Alfabet" }, { value: "value", label: "Waarde" },
   { value: "rarity", label: "Zeldzaamheid" }, { value: "type", label: "Type" },
 ];
+// Sorteringen die je kunt omdraaien: [standaardrichting, omgekeerd]
+const SORT_DIRS = { number: ["1 → 99", "99 → 1"], name: ["A → Z", "Z → A"], value: ["Hoog → laag", "Laag → hoog"] };
 const FEAT_OPTIONS = [{ value: "rarity", label: "Zeldzaamheid" }, { value: "value", label: "Waarde" }];
 
 // Uitgelichte kaarten (waaier, topkaart, top 4) op volgorde van de instelling "featBy":
@@ -642,10 +645,6 @@ function renderSettings() {
       settingRow("Valuta", "Prijzen komen in euro's van Cardmarket; dollars worden omgerekend met de koers van de ECB."
         + (S.cur === "USD" && S.rate.date ? " Koers van " + dateTxt(S.rate.date) + "." : ""),
         segmented("Valuta", S.cur, [{ value: "EUR", label: "€" }, { value: "USD", label: "$" }], (v) => changeSetting("cur", v))),
-      settingRow("Weergave van kaarten", "Dezelfde keuze als boven de kaarten.",
-        segmented("Weergave van kaarten", S.view, VIEW_OPTIONS, (v) => changeSetting("view", v))),
-      settingRow("Sorteren op", "Dezelfde keuze als boven de kaarten.",
-        select("Sorteren op", S.sort, SORT_OPTIONS, (v) => changeSetting("sort", v))),
       settingRow("\"Nog niet\"-kaarten tonen", "Uit = in een set alleen de kaarten die je hebt.",
         segmented("Nog niet-kaarten tonen", S.showMissing ? "on" : "off", ON_OFF, (v) => changeSetting("showMissing", v === "on"))),
       settingRow("Holo en kantelen", calmQuery.matches ? "Je apparaat staat op \"minder beweging\", daarom staat dit nu altijd uit."
@@ -791,7 +790,10 @@ function renderMain(bySet) {
   out.push(el("div", { class: "toolbar" },
     tabs(S.view, VIEW_OPTIONS, (v) => { setSetting("view", v); render(); }),
     el("div", { class: "toolbar-gap" }),
-    select("Sorteer op", S.sort, SORT_OPTIONS, (v) => { setSetting("sort", v); render(); }),
+    select("Sorteer op", S.sort, SORT_OPTIONS, (v) => { setSetting("sort", v); setSetting("sortRev", false); render(); }),
+    // Richting-knop: draait Nummer, Alfabet en Waarde om
+    SORT_DIRS[S.sort] ? el("button", { type: "button", class: "icon-btn sort-dir", "aria-label": `Volgorde omdraaien, nu ${SORT_DIRS[S.sort][+S.sortRev]}`,
+      title: "Volgorde omdraaien", onclick: () => { setSetting("sortRev", !S.sortRev); render(); } }, SORT_DIRS[S.sort][+S.sortRev]) : null,
     el("button", { type: "button", class: "icon-btn" + (S.filterOpen || filtered ? " on" : ""), "aria-label": "Filter", "aria-pressed": String(S.filterOpen), onclick: () => { S.filterOpen = !S.filterOpen; render(); } }, icon(ICONS.filter))));
 
   // Filteren en sorteren
@@ -808,11 +810,16 @@ function renderMain(bySet) {
     if (S.typeF !== "all" && typeName(c) !== S.typeF) return false;
     return true;
   });
-  const byValue = (c) => valueEur(c) ?? -1;
+  // rev = -1 draait de volgorde om; kaarten zonder prijs staan bij Waarde altijd achteraan
+  const rev = SORT_DIRS[S.sort] && S.sortRev ? -1 : 1;
   const sorters = {
-    number: (a, b) => a.i - b.i,
-    name: (a, b) => a.name.localeCompare(b.name) || a.i - b.i,
-    value: (a, b) => byValue(b) - byValue(a) || a.i - b.i,
+    number: (a, b) => rev * (a.i - b.i),
+    name: (a, b) => rev * a.name.localeCompare(b.name) || a.i - b.i,
+    value: (a, b) => {
+      const va = valueEur(a), vb = valueEur(b);
+      if (va == null || vb == null) return (va == null) - (vb == null) || a.i - b.i;
+      return rev * (vb - va) || a.i - b.i;
+    },
     rarity: (a, b) => rarityRank(b.rarity) - rarityRank(a.rarity) || a.i - b.i,
     type: (a, b) => typeName(a).localeCompare(typeName(b)) || a.i - b.i,
   };

@@ -105,6 +105,8 @@ body{padding:0}
 .main{min-width:0;min-height:0;display:flex;flex-direction:column;gap:16px;overflow-y:auto;padding:4px 8px 24px 4px}
 .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .toolbar-gap{flex-grow:1}
+/* Richting-knop naast "Sorteer op": zelfde knop als filter, maar breed genoeg voor de tekst */
+.icon-btn.sort-dir{width:auto;padding:0 12px;font-family:var(--font-mono);font-size:12.5px;font-weight:700;white-space:nowrap}
 .icon-btn{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);cursor:pointer;box-shadow:0 2px 0 var(--line)}
 .icon-btn.on{background:linear-gradient(180deg,#ffe066,#ffcb05);color:#0b2447;box-shadow:inset 0 0 0 2px #0b2447,inset 0 3px 0 rgba(255,255,255,.6),0 3px 0 #0b2447;border-color:#0b2447}
 .filterbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--paper);border-radius:16px;padding:10px 14px;box-shadow:var(--shadow-raised)}
@@ -284,6 +286,11 @@ button.lrow:hover{background:var(--bg)}
   .slim-brand .sdx-logo{width:32px;height:32px;margin:0}
   .slim-title{font-size:22px}
   .slim-sub{display:none}
+
+  /* Werkbalk: "Sorteer op" alleen voor schermlezers, zodat sorteren, richting en filter op één regel passen */
+  .toolbar{gap:8px}
+  .toolbar .kk-select label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .icon-btn.sort-dir{padding:0 10px}
 
   /* Indeling: rijen niet uitrekken; ruimte onderin voor het menu; setpaneel alleen bij Collectie */
   .layout{align-content:start;padding:0 12px calc(104px + env(safe-area-inset-bottom));gap:12px}
