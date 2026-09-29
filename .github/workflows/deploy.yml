@@ -26,10 +26,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Python klaarzetten
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -70,14 +70,14 @@ jobs:
           rsync -a --exclude .git --exclude .github --exclude scripts --exclude supabase \
             --exclude data/catalog --exclude data/prices --exclude _site ./ _site/
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       # Website staat online, maar laat de run als mislukt zien zodat GitHub een mail stuurt
       - name: Melding als een bron niet bereikbaar was
