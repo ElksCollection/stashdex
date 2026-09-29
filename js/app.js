@@ -83,7 +83,7 @@ const S = {
   cards: {}, cardsError: {},          // per set-id: de kaarten uit data/cards/<id>.json
   history: {},                        // per set-id: belofte met de prijsgeschiedenis uit data/history/<id>.json
   cardById: {},                       // alle geladen kaarten op kaart-id (voor de kaartwaaier)
-  owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count, raw_value_usd }
+  owned: {}, ownedLoaded: false, ownedError: null, // per kaart-id: { count }
   rate: { eurUsd: FALLBACK_EUR_USD, date: null },  // 1 euro = eurUsd dollar; date = dag van de ECB-koers
   nav: "collection",
   setId: pref.get("set", "30th"),
@@ -100,10 +100,9 @@ const S = {
 const setIdOf = (cardId) => cardId.slice(0, cardId.lastIndexOf("-"));
 const parentIdOf = (setId) => S.parentOf[setId] || setId;
 const countOf = (cardId) => S.owned[cardId]?.count || 0;
-// Eigen waarde gaat voor (opgeslagen in dollars); anders de marktprijs (euro's) uit de nachtelijke data
+// Waarde van een kaart = de Cardmarket-marktprijs (euro's) uit de nachtelijke data; eigen waardes bestaan niet (besluit 28-09)
 function valueEur(card) {
-  const own = S.owned[card.id]?.raw_value_usd;
-  return own != null ? own / S.rate.eurUsd : card.eur ?? null;
+  return card.eur ?? null;
 }
 // Totaal van een hoofdset inclusief zijn subsets
 const setTotal = (set) => S.cards[set.id]?.length || (S.subsets[set.id] || []).reduce((n, s) => n + (s.total || 0), set.total || 0);
@@ -233,12 +232,12 @@ async function loadOwned() {
     const rows = [];
     for (let from = 0; ; from += 1000) {
       const { data, error } = await supabase.from("collection")
-        .select("card_id,count,raw_value_usd").order("card_id").range(from, from + 999);
+        .select("card_id,count").order("card_id").range(from, from + 999);
       if (error) throw error;
       rows.push(...data);
       if (data.length < 1000) break;
     }
-    S.owned = Object.fromEntries(rows.map((r) => [r.card_id, { count: r.count, raw_value_usd: r.raw_value_usd }]));
+    S.owned = Object.fromEntries(rows.map((r) => [r.card_id, { count: r.count }]));
     S.ownedLoaded = true;
     S.ownedError = null;
   } catch (err) {
@@ -531,9 +530,9 @@ async function downloadCollection(e) {
     const cell = (v) => { const s = v == null ? "" : typeof v === "number" ? String(v).replace(".", ",") : String(v); return /[;"\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s; };
     const rows = Object.entries(S.owned).sort(([a], [b]) => a.localeCompare(b, "nl", { numeric: true })).map(([id, o]) => {
       const card = S.cardById[id];
-      return [id, card?.name, S.setById[setIdOf(id)]?.name, card?.number, o.count, o.raw_value_usd, o.raw_value_usd != null ? "USD" : null, card?.eur];
+      return [id, card?.name, S.setById[setIdOf(id)]?.name, card?.number, o.count, card?.eur];
     });
-    const lines = [["card_id", "naam", "set", "nummer", "aantal", "eigen_waarde", "valuta", "marktprijs_eur"], ...rows].map((r) => r.map(cell).join(";"));
+    const lines = [["card_id", "naam", "set", "nummer", "aantal", "marktprijs_eur"], ...rows].map((r) => r.map(cell).join(";"));
     // BOM vooraan, zodat Excel de é van Pokémon goed toont
     const url = URL.createObjectURL(new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
     el("a", { href: url, download: `stashdex-collectie-${new Date().toLocaleDateString("sv-SE")}.csv` }).click();
@@ -743,7 +742,7 @@ function openModal(card) {
       .upsert({ user_id: S.userId, card_id: card.id, count, updated_at: new Date().toISOString() }, { onConflict: "user_id,card_id" });
     setBusy(false);
     if (error) return toast(`Opslaan mislukt: ${error.message}`);
-    S.owned[card.id] = { raw_value_usd: null, ...S.owned[card.id], count };
+    S.owned[card.id] = { ...S.owned[card.id], count };
     closeModal();
     render();
     toast(have ? `${card.name} opgeslagen` : `${card.name} staat nu in je collectie`);

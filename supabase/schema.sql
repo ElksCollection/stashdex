@@ -7,8 +7,8 @@ create table if not exists public.collection (
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
   card_id text not null,                       -- kaart-id van TCGdex, bv. 'sv03.5-006'
   count integer not null default 1 check (count > 0),
-  raw_value_usd numeric,                       -- eigen waarde; leeg = marktprijs gebruiken
-  graded_value_usd numeric,                    -- voorlopig niet in gebruik (geparkeerd)
+  raw_value_usd numeric,                       -- niet meer in gebruik: geen eigen waardes (besluit 28-09-2026)
+  graded_value_usd numeric,                    -- niet in gebruik
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (user_id, card_id)
