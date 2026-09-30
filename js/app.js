@@ -1,7 +1,7 @@
-// Stashdex: de app na het inloggen (stap 1: nieuwe indeling + collectie)
+// Stashdex: de app na het inloggen (indeling, collectie, Start en Statistiek, Instellingen, scannen)
 import { supabase, safe } from "./supabase-client.js";
 import { startAuth, openPasswordChange } from "./auth.js";
-import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES } from "./rarity.js";
+import { tier, rarityRank, holoLevel, typeName, typeKey, TYPES, TIER_NAMES } from "./rarity.js";
 import { rankCards, searchCards } from "./scan-match.js";
 import { prepareOcr, ocrReady, startCamera, stopCamera, grabFrame, fileToCanvas, thumbOf, readCard, readWhole } from "./scan-camera.js";
 
@@ -86,6 +86,7 @@ const S = {
   history: {},                        // per set-id: belofte met de prijsgeschiedenis uit data/history/<id>.json
   cardById: {},                       // alle geladen kaarten op kaart-id (voor de kaartwaaier)
   owned: {}, ownedLoaded: false, ownedError: null, // per sleutel "<kaart-id>|<versie>": { count }
+  wishCount: null,                    // aantal kaarten op je wensenlijst (voor de tegel op Start)
   rate: { eurUsd: FALLBACK_EUR_USD, date: null },  // 1 euro = eurUsd dollar; date = dag van de ECB-koers
   meta: {},                           // data/meta.json: datum van de prijzen en de koers
   email: "",
@@ -312,6 +313,12 @@ async function fetchCards(setId) {
   } catch (err) {
     S.cardsError[setId] = `De kaarten van deze set konden niet geladen worden (${err.message}).`;
   }
+}
+
+// Aantal kaarten op je wensenlijst; lukt dat niet, dan blijft de tegel op Start op "…" staan
+async function loadWishCount() {
+  const { count, error } = await supabase.from("wishlist").select("card_id", { count: "exact", head: true });
+  if (!error) S.wishCount = count ?? 0;
 }
 
 // Hele collectie ophalen, in stukken van 1000 (de maximale grootte per keer)
@@ -610,11 +617,128 @@ function navItem(set, owned) {
 
 // Schermen die in een volgende stap gebouwd worden
 const LATER = {
-  home: ["Welkom terug", "Start", "Het startscherm met je tegels, \"Bezig met\" en je waardevolste kaarten komt in stap 2."],
   binders: ["Binders", "Je eigen binders, net als in het echt", "Hier maak je straks je eigen binders met sleeves of toploaders en kies je een kaft. Binders komen in stap 7."],
   wish: ["Wensenlijst", "Nog niet gebouwd", "De wensenlijst komt in stap 3, samen met het vernieuwde kaartdetail."],
-  stats: ["Statistiek", "Je hele collectie in cijfers", "Statistiek komt in stap 2."],
 };
+
+// ---------- Start en Statistiek (stap 2) ----------
+// Cijfers over je hele collectie. Aantallen en voortgang kunnen meteen; waardes pas als de kaarten van je sets geladen zijn.
+// Een set telt mee als je er minstens één kaart van hebt ("je sets"); een kaartnummer telt één keer, ook met reverse holo
+function collectionStats() {
+  const bySet = ownedBySet();
+  const cards = collectionCards(); // null zolang er nog sets laden
+  const worth = {};
+  for (const c of cards || []) {
+    const id = parentIdOf(c.setId);
+    worth[id] = (worth[id] || 0) + (valueEur(c) ?? 0) * countOf(c);
+  }
+  const sets = Object.keys(bySet).filter((id) => S.setById[id]).map((id) => {
+    const set = S.setById[id], total = setTotal(set), have = Math.min(bySet[id], total);
+    return { set, have, total, pct: total ? Math.round((have / total) * 100) : 0, done: total > 0 && have === total, value: cards ? worth[id] || 0 : null };
+  });
+  const copies = Object.values(S.owned).reduce((n, o) => n + o.count, 0);
+  return {
+    cards, sets, copies,
+    kinds: Object.keys(S.owned).length,               // kaarten, elke versie apart (zoals in de header)
+    have: sets.reduce((n, s) => n + s.have, 0),       // verschillende kaartnummers
+    all: sets.reduce((n, s) => n + s.total, 0),       // alle kaarten in je sets
+    complete: sets.filter((s) => s.done).length,
+    value: cards ? cards.reduce((sum, c) => sum + (valueEur(c) ?? 0) * countOf(c), 0) : null,
+  };
+}
+
+// Grote tegel op Start: label, groot getal, uitleg eronder
+function statTile(label, big, sub, onclick, holo = false) {
+  return el("button", { type: "button", class: "tile" + (holo ? " tile-holo" : ""), onclick },
+    el("span", { class: "tile-label" }, label), el("b", {}, big), el("span", { class: "tile-sub" }, sub));
+}
+
+const plural = (n, one, more) => `${n} ${n === 1 ? one : more}`;
+
+function renderHome() {
+  if (!S.ownedLoaded) return [pageTitle("Welkom terug"), S.ownedError ? null : el("p", { class: "loading" }, "Collectie laden…")];
+  const st = collectionStats();
+  const out = [pageTitle("Welkom terug", `${plural(st.kinds, "kaart", "kaarten")} · ${st.value == null ? "waarde laden…" : money(st.value)}`)];
+  out.push(el("div", { class: "tiles" },
+    statTile("Mijn collectie", st.kinds, `kaarten in ${plural(st.sets.length, "set", "sets")}`, () => pickSet(ALL)),
+    statTile("Statistiek", st.value == null ? "…" : money(st.value), "totale waarde", () => go("stats")),
+    statTile("Wensen", S.wishCount ?? "…", "kaarten op je lijst", () => go("wish")),
+    statTile("Sets compleet", st.complete, `van je ${plural(st.sets.length, "set", "sets")}`, () => go("stats"), true)));
+
+  if (!st.kinds) {
+    out.push(emptyState("Nog geen kaarten", "Kies bij Collectie een set en voeg je eerste kaart toe, of scan er een. Hier zie je daarna hoe je ervoor staat."));
+    return out;
+  }
+
+  // Bezig met: sets die nog niet af zijn, het verst gevorderd eerst
+  const busy = st.sets.filter((s) => !s.done).sort((a, b) => b.have / b.total - a.have / a.total || b.have - a.have).slice(0, 3);
+  if (busy.length) {
+    out.push(el("h3", { class: "section" }, "Bezig met"),
+      el("div", { class: "busy" }, busy.map((s) => el("button", { type: "button", class: "plain", "aria-label": `Open ${s.set.name}`, onclick: () => pickSet(s.set.id) },
+        setProgress(s.set.name, s.have, s.total)))));
+  }
+
+  // Je waardevolste kaarten: alleen op waarde, elke versie telt als eigen kaart
+  out.push(el("h3", { class: "section" }, "Je waardevolste kaarten"));
+  if (!st.cards) out.push(el("p", { class: "loading" }, "Kaarten laden…"));
+  else {
+    const top = [...st.cards].sort((a, b) => (valueEur(b) ?? -1) - (valueEur(a) ?? -1) || a.i - b.i).slice(0, 5);
+    out.push(el("div", { class: "kk-grid top-grid" }, top.map((c) => cardTile(c))));
+  }
+  return out;
+}
+
+function renderStats() {
+  const head = pageTitle("Statistiek", "Je hele collectie in cijfers");
+  if (!S.ownedLoaded) return [head, S.ownedError ? null : el("p", { class: "loading" }, "Collectie laden…")];
+  const st = collectionStats();
+  if (!st.kinds) return [head, emptyState("Nog geen kaarten", "Zodra je kaarten hebt, zie je hier je totale waarde, je voortgang per set en de verdeling per zeldzaamheid.")];
+  const out = [head];
+
+  // Twee grote vakken: totale waarde en kaarten verzameld
+  const pctAll = st.all ? Math.round((st.have / st.all) * 100) : 0;
+  out.push(el("div", { class: "bigstats" },
+    el("section", { class: "panel bigstat" },
+      el("span", { class: "tile-label" }, "Totale waarde"),
+      el("b", { class: "bignum" }, st.value == null ? "…" : money(st.value)),
+      el("span", { class: "tile-sub" }, `${plural(st.copies, "stuk", "stuks")}` + (st.value == null ? "" : ` · gemiddeld ${money(st.value / st.copies)} per stuk`))),
+    el("section", { class: "panel bigstat" },
+      el("span", { class: "tile-label" }, "Kaarten"),
+      el("b", { class: "bignum" }, st.have, el("small", {}, ` / ${st.all}`)),
+      el("span", { class: "tile-sub" }, `je hebt ${pctAll}% van alle kaarten in je sets · ${plural(st.complete, "set", "sets")} compleet`),
+      setProgress("Al je sets", st.have, st.all))));
+
+  // Per editie: je sets, het verst gevorderd eerst; klik opent de set
+  const rows = [...st.sets].sort((a, b) => b.pct - a.pct || b.have - a.have || a.set.name.localeCompare(b.set.name));
+  out.push(el("section", { class: "panel" },
+    el("div", { class: "panel-head" },
+      el("h3", { class: "section" }, "Per editie"),
+      el("button", { type: "button", class: "kk-btn kk-btn-primary", onclick: () => toast("Editie toevoegen komt in stap 6") }, "+ Editie toevoegen")),
+    el("div", { class: "erows", role: "table", "aria-label": "Je sets" },
+      el("div", { class: "erow ehead", role: "row" }, el("span", { class: "col-code" }, "Code"), el("span", {}, "Editie"), el("span", { class: "col-series" }, "Serie"),
+        el("span", {}, "In bezit"), el("span", { class: "col-prog" }, "Voortgang"), el("span", { style: "text-align:right" }, "Waarde")),
+      rows.map((s) => el("button", { type: "button", class: "erow", "aria-label": `${s.set.name}: ${s.have} van ${s.total}, ${s.pct}% verzameld`, onclick: () => pickSet(s.set.id) },
+        el("span", { class: "col-code" }, el("span", { class: "code" }, s.set.id.toUpperCase())),
+        el("span", { class: "lname" }, s.set.name),
+        el("span", { class: "esub col-series" }, s.set.series),
+        el("span", { class: "mono" }, `${s.have} / ${s.total}`),
+        el("span", { class: "eprog col-prog" }, el("span", { class: "ebar" + (s.done ? " done" : "") }, el("i", { style: `width:${s.pct}%` })), el("span", { class: "mono epct" }, s.pct + "%")),
+        el("span", { class: "mono lval" }, s.value == null ? "…" : money(s.value)))))));
+
+  // Per zeldzaamheid: aantal kaarten (elke versie apart) per niveau van de ladder; "Overig" = niet op de ladder (bv. Promo)
+  const perTier = new Array(TIER_NAMES.length + 1).fill(0);
+  for (const c of st.cards || []) perTier[rarityRank(c.rarity)]++;
+  const tierRows = [...TIER_NAMES.map((name, i) => [chip(name), perTier[i + 1]]), ...(perTier[0] ? [[el("span", { class: "kk-chip kk-chip-tier-c" }, el("span", {}, "Overig")), perTier[0]]] : [])];
+  const maxN = Math.max(1, ...tierRows.map(([, n]) => n));
+  out.push(el("section", { class: "panel" },
+    el("h3", { class: "section" }, "Per zeldzaamheid"),
+    st.cards ? tierRows.map(([label, n]) => el("div", { class: "barrow" },
+      el("span", { class: "barlabel" }, label),
+      el("span", { class: "bartrack", role: "img", "aria-label": `${n} kaarten` }, el("i", { style: `width:${Math.round((n / maxN) * 100)}%` })),
+      el("span", { class: "mono barnum" }, n)))
+      : el("p", { class: "loading" }, "Kaarten laden…")));
+  return out;
+}
 
 // ---------- Instellingen (punt 20) ----------
 // Eén regel: label met korte uitleg links, de keuze rechts (op de telefoon eronder)
@@ -745,6 +869,8 @@ function renderMain(bySet) {
   const out = [];
   if (S.ownedError) out.push(emptyState("Er ging iets mis", S.ownedError));
   if (S.nav === "settings") return [...out, ...renderSettings()];
+  if (S.nav === "home") return [...out, ...renderHome()];
+  if (S.nav === "stats") return [...out, ...renderStats()];
   if (S.nav !== "collection") {
     const [title, sub, text] = LATER[S.nav];
     return [...out, pageTitle(title, sub), emptyState("Komt eraan", text)];
@@ -883,6 +1009,8 @@ function go(nav) {
   S.nav = nav;
   render();
   if (nav === "collection") loadCards(S.setId);
+  // Start en Statistiek rekenen met de kaarten van al je sets (ook een set die je net via scannen hebt toegevoegd)
+  if (nav === "home" || nav === "stats") loadOwnedSets();
 }
 
 // ---------- Meer-vel (alleen op de telefoon): Binders, Statistiek, Instellingen, Uitloggen ----------
@@ -1452,7 +1580,7 @@ async function enter(session) {
   S.email = session.user.email || "";
   buildShell();
   render();
-  await Promise.all([loadSets(), loadOwned(), loadRate(), loadSettings()]);
+  await Promise.all([loadSets(), loadOwned(), loadRate(), loadSettings(), loadWishCount()]);
   if (S.userId !== session.user.id) return; // intussen uitgelogd
   // De set uit de instellingen kan van een ander apparaat komen; controleren dat hij bestaat
   if (S.setId !== ALL && S.sets.length) {
@@ -1472,6 +1600,7 @@ function leave() {
   S.owned = {};
   S.ownedLoaded = false;
   S.ownedError = null;
+  S.wishCount = null;
   S.settingsLoaded = false;
   clearTimeout(syncTimer);
   closeModal();

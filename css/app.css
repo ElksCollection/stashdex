@@ -451,3 +451,71 @@ body:has(.scan-dlg) .toast{bottom:auto;top:calc(14px + env(safe-area-inset-top))
   .scan-compare{grid-template-columns:repeat(2,minmax(0,1fr))}
   .scan-scope .kk-seg button{padding:10px 12px}
 }
+/* ---------- Start en Statistiek (stap 2): tegels, "Bezig met", grote cijfers, per editie, per zeldzaamheid ---------- */
+.section{margin:10px 0 0;font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.3px;color:var(--on-page)}
+.panel{background:var(--paper);border-radius:18px;box-shadow:var(--shadow-raised);padding:18px}
+.panel .section{margin:0 0 8px;color:var(--ink)}
+.plain{display:block;width:100%;padding:0;border:none;background:none;cursor:pointer;text-align:left;border-radius:18px;font:inherit;color:inherit}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;min-height:132px;padding:18px;border:none;border-radius:18px;background:var(--paper);box-shadow:var(--shadow-card);cursor:pointer;text-align:left;color:var(--ink);font-family:var(--font-sans);transition:transform .25s var(--kk-spring),box-shadow .25s}
+.tile:hover{transform:translateY(-3px);box-shadow:var(--shadow-lift)}
+.tile-label{font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-soft)}
+.tile b{max-width:100%;font-family:var(--font-display);font-weight:800;font-size:34px;letter-spacing:-.8px;line-height:1;overflow-wrap:anywhere}
+.tile-sub{font-size:13px;color:var(--ink-soft)}
+.tile-holo{background:linear-gradient(var(--paper),var(--paper)) padding-box,var(--kk-holo) border-box;border:3px solid transparent}
+.busy{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.busy .plain{transition:transform .25s var(--kk-spring)}
+.busy .plain:hover{transform:translateY(-3px)}
+.top-grid{grid-template-columns:repeat(auto-fill,minmax(min(168px,100%),1fr));gap:14px}
+/* Smalle tegels: waarde iets kleiner, zodat ook € 158,83 en #CC004 passen */
+.top-grid .kk-fact b{font-size:10.5px;letter-spacing:-.6px}
+.top-grid .kk-card-facts{gap:0 6px}
+.bigstats{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px}
+.bigstat{display:flex;flex-direction:column;gap:8px;min-width:0}
+.bignum{font-family:var(--font-display);font-weight:800;font-size:56px;letter-spacing:-1.5px;line-height:1;color:var(--ink);overflow-wrap:anywhere}
+.bignum small{font-size:28px;color:var(--ink-soft);letter-spacing:-.5px}
+.bigstat .kk-progress{margin-top:6px}
+.panel-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.panel-head .section{margin:0;flex-grow:1}
+.erows{display:flex;flex-direction:column}
+.erow{box-sizing:border-box;display:grid;grid-template-columns:72px minmax(0,1.4fr) minmax(0,1fr) 96px minmax(0,1.3fr) 104px;align-items:center;gap:12px;width:100%;padding:10px 12px;border:none;border-radius:12px;background:none;text-align:left;font-family:var(--font-sans);font-size:14px;color:var(--ink);cursor:pointer}
+button.erow:hover{background:var(--bg)}
+.ehead{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-soft);cursor:default;border-bottom:1.5px dashed var(--line);border-radius:0}
+.code{display:inline-block;max-width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono);font-size:10.5px;font-weight:700;letter-spacing:.5px;background:var(--page-ink);color:#fff;border-radius:6px;padding:3px 6px}
+.esub{font-size:12.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eprog{display:flex;align-items:center;gap:8px;min-width:0}
+.ebar{flex-grow:1;position:relative;height:10px;border-radius:999px;background:var(--bg);box-shadow:var(--shadow-inset);overflow:hidden}
+.ebar i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(180deg,var(--sun),var(--gold-bright))}
+.ebar.done i{background:var(--kk-holo)}
+.epct{font-size:11px;width:36px;text-align:right}
+.barrow{display:grid;grid-template-columns:96px minmax(0,1fr) 44px;align-items:center;gap:10px;padding:5px 0}
+.bartrack{height:12px;border-radius:999px;background:var(--bg);box-shadow:var(--shadow-inset);overflow:hidden;position:relative}
+.bartrack i{position:absolute;inset:0 auto 0 0;border-radius:999px;background:linear-gradient(180deg,var(--sun),var(--gold-bright))}
+.barnum{text-align:right;font-size:12px}
+.tile:focus-visible,.plain:focus-visible,.erow:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+/* Indeling past zich aan de breedte van het hoofdvlak aan (niet van het scherm): met open setpaneel is dat op een kleine laptop smal */
+.main{container:hoofdvlak/inline-size}
+@container hoofdvlak (max-width: 1000px){
+  .erow{grid-template-columns:64px minmax(0,1.4fr) 88px minmax(0,1fr) 96px}
+  .erow .col-series{display:none}
+}
+@container hoofdvlak (max-width: 760px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .busy,.bigstats{grid-template-columns:minmax(0,1fr)}
+  /* Per editie: naam, in bezit en waarde; de voortgang als balkje eronder */
+  .erow{grid-template-columns:minmax(0,1fr) auto auto;gap:4px 10px;padding:10px 6px}
+  .erow .col-code{display:none}
+  .erow .col-prog{grid-column:1/-1;order:2}
+  .ehead .col-prog{display:none}
+}
+@media (max-width: 560px){
+  .tiles{gap:12px}
+  .tile{min-height:112px;padding:14px}
+  .tile b{font-size:26px}
+  .top-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .bignum{font-size:42px}
+  .bignum small{font-size:22px}
+  .panel{padding:14px}
+  .panel-head{flex-wrap:wrap}
+  .barrow{grid-template-columns:84px minmax(0,1fr) 36px}
+}
