@@ -85,6 +85,9 @@ body{padding:0}
 /* Ingeklapt setpaneel: een smalle strook met » en "Sets" */
 .layout{transition:grid-template-columns .35s var(--kk-ease)}
 .layout.panel-collapsed{grid-template-columns:88px 56px minmax(0,1fr)}
+/* Het setpaneel hoort alleen bij Collectie; op Start, Statistiek, Instellingen enz. krijgt het hoofdvlak de ruimte (wens Thimo 30-09) */
+@media (min-width: 901px){.layout:not([data-nav="collection"]),.layout.panel-collapsed:not([data-nav="collection"]){grid-template-columns:88px minmax(0,1fr)}}
+.layout:not([data-nav="collection"]) .setpanel{display:none}
 .panel-strip{display:none}
 .setpanel.collapsed{padding:8px 6px}
 .setpanel.collapsed>:not(.panel-strip){display:none}
