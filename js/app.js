@@ -1008,6 +1008,7 @@ function renderMain(bySet) {
 function go(nav) {
   S.nav = nav;
   render();
+  ui.main.scrollTop = 0; // een andere pagina begint bovenaan
   if (nav === "collection") loadCards(S.setId);
   // Start en Statistiek rekenen met de kaarten van al je sets (ook een set die je net via scannen hebt toegevoegd)
   if (nav === "home" || nav === "stats") loadOwnedSets();
