@@ -52,6 +52,7 @@ const ICONS = {
   collapse: '<path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/>',
   expand: '<path d="m13 17 5-5-5-5M6 17l5-5-5-5"/>',
   more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  up: '<path d="M12 19V5M5 12l7-7 7 7"/>',
 };
 
 // Het Stashdex-logo: schuine kaart met holo-binnenkant, gele S en sterretje.
@@ -515,7 +516,10 @@ function buildShell() {
   ui.main = el("main", { class: "main scroll" });
   ui.main.addEventListener("scroll", onMainScroll, { passive: true });
   ui.panel = panel;
-  ui.layout = el("div", { class: "layout" }, rail, panel, ui.main);
+  // Rond knopje rechtsonder: in één keer terug naar boven (verschijnt pas na een stuk scrollen)
+  ui.toTop = el("button", { type: "button", class: "to-top", "aria-label": "Terug naar boven", title: "Terug naar boven", tabindex: "-1",
+    onclick: () => ui.main.scrollTo({ top: 0, behavior: calmQuery.matches || S.motion === "off" ? "auto" : "smooth" }) }, icon(ICONS.up));
+  ui.layout = el("div", { class: "layout" }, rail, panel, ui.main, ui.toTop);
   ui.app = $("home");
   ui.app.classList.remove("head-hidden");
   ui.app.replaceChildren(hero, ui.layout);
@@ -571,6 +575,10 @@ function onMainScroll() {
   if (!ui.main) return;
   // Header pas terug als je weer helemaal bovenaan bent; niet wisselen terwijl het kaartdetail of het Meer-vel open is
   if (!modal && !moreSheet) ui.app.classList.toggle("head-hidden", ui.main.scrollTop > 60);
+  // Knopje "naar boven" pas tonen als je een stuk naar beneden bent (ongeveer een scherm)
+  const far = ui.main.scrollTop > ui.main.clientHeight * 0.8;
+  ui.toTop.classList.toggle("on", far);
+  ui.toTop.tabIndex = far ? 0 : -1;
 }
 
 // Uitgelichte kaarten (waaier, topkaart, top 4) op volgorde van de instelling "featBy":
