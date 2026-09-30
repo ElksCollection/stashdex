@@ -513,9 +513,17 @@ function buildShell() {
       el("button", { type: "button", class: "kk-btn kk-btn-ghost kk-btn-block", onclick: () => toast("Editie toevoegen komt in stap 6") }, "+ Editie toevoegen")));
 
   ui.main = el("main", { class: "main scroll" });
+  ui.main.addEventListener("scroll", onMainScroll, { passive: true });
+  // Plakbalk: houder zonder hoogte bovenin het hoofdvlak, zodat er niets verspringt als de balk verschijnt
+  ui.setbar = el("div", { class: "setbar", role: "button", tabindex: "0", "aria-hidden": "true", title: "Terug naar boven",
+    onclick: () => ui.main.scrollTo({ top: 0, behavior: calmQuery.matches ? "auto" : "smooth" }),
+    onkeydown: (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === ui.setbar) { e.preventDefault(); ui.setbar.click(); } } });
+  ui.setbarWrap = el("div", { class: "setbar-wrap" }, ui.setbar);
   ui.panel = panel;
   ui.layout = el("div", { class: "layout" }, rail, panel, ui.main);
-  $("home").replaceChildren(hero, ui.layout);
+  ui.app = $("home");
+  ui.app.classList.remove("head-hidden");
+  ui.app.replaceChildren(hero, ui.layout);
   setPanel(pref.get("panel", !matchMedia("(max-width: 560px)").matches), false);
 }
 
@@ -537,7 +545,9 @@ function render() {
   for (const [key, btn] of Object.entries(ui.rail)) btn.classList.toggle("on", S.nav === key);
   renderFan();
   renderSeries(bySet);
-  ui.main.replaceChildren(...renderMain(bySet));
+  renderSetbar(bySet);
+  ui.main.replaceChildren(ui.setbarWrap, ...renderMain(bySet));
+  onMainScroll(); // inhoud veranderd: header en plakbalk opnieuw bepalen
 }
 
 // Keuzes voor de werkbalk boven de kaarten (weergave en sorteren staan bewust niet in Instellingen)
@@ -549,6 +559,46 @@ const SORT_OPTIONS = [
 // Sorteringen die je kunt omdraaien: [standaardrichting, omgekeerd]
 const SORT_DIRS = { number: ["1 → 99", "99 → 1"], name: ["A → Z", "Z → A"], value: ["Hoog → laag", "Laag → hoog"] };
 const FEAT_OPTIONS = [{ value: "rarity", label: "Zeldzaamheid" }, { value: "value", label: "Waarde" }];
+
+// Knoppen voor weergave en sorteren; staan in de werkbalk én in de plakbalk (zelfde instellingen, één manier)
+const viewTabs = () => tabs(S.view, VIEW_OPTIONS, (v) => { setSetting("view", v); render(); });
+function sortControls() {
+  return [
+    select("Sorteer op", S.sort, SORT_OPTIONS, (v) => { setSetting("sort", v); setSetting("sortRev", false); render(); }),
+    // Richting-knop: draait Nummer, Alfabet en Waarde om
+    SORT_DIRS[S.sort] ? el("button", { type: "button", class: "icon-btn sort-dir", "aria-label": `Volgorde omdraaien, nu ${SORT_DIRS[S.sort][+S.sortRev]}`,
+      title: "Volgorde omdraaien", onclick: () => { setSetting("sortRev", !S.sortRev); render(); } }, SORT_DIRS[S.sort][+S.sortRev]) : null,
+  ];
+}
+
+// ---------- Plakbalk en wegschuivende header (punt 23) ----------
+// Plakbalk bovenin het hoofdvlak zodra de grote settitel uit beeld is: setnaam, voortgang en (als er ruimte is) weergave en sorteren
+function renderSetbar(bySet) {
+  const bar = ui.setbar;
+  if (S.nav !== "collection" || S.setsError) return bar.replaceChildren();
+  const all = S.setId === ALL, set = all ? null : S.setById[S.setId];
+  if (!all && !set) return bar.replaceChildren();
+  const total = all ? 0 : setTotal(set), have = all ? 0 : Math.min(bySet[set.id] || 0, total), pct = total ? Math.round((have / total) * 100) : 0;
+  const n = Object.keys(S.owned).length;
+  bar.replaceChildren(...[
+    el("span", { class: "kk-nav-ico", "aria-hidden": "true" }),
+    el("span", { class: "setbar-name" }, el("b", {}, all ? "Alle kaarten" : set.name), all ? null : el("small", {}, set.series)),
+    el("span", { class: "setbar-count mono" }, all ? `${n} ${n === 1 ? "kaart" : "kaarten"}` : [el("b", {}, have), ` / ${total} · ${pct}%`]),
+    all ? null : el("span", { class: "kk-progress-track setbar-track" }, el("span", { class: "kk-progress-fill", style: `width:${pct}%` })),
+    // Knoppen werken zelf; een klik erop mag de balk niet naar boven laten springen
+    el("span", { class: "setbar-tools", onclick: (e) => e.stopPropagation() }, viewTabs(), ...sortControls())].filter(Boolean));
+}
+
+// Bij scrollen in het hoofdvlak: header weg (alleen op brede schermen, via CSS) en plakbalk tonen/verbergen
+function onMainScroll() {
+  if (!ui.main) return;
+  // Header pas terug als je weer helemaal bovenaan bent; niet wisselen terwijl het kaartdetail of het Meer-vel open is
+  if (!modal && !moreSheet) ui.app.classList.toggle("head-hidden", ui.main.scrollTop > 60);
+  const head = ui.main.querySelector(".sethead");
+  const show = !!head && ui.setbar.hasChildNodes() && head.getBoundingClientRect().bottom < ui.main.getBoundingClientRect().top + 8;
+  ui.setbar.classList.toggle("on", show);
+  ui.setbar.setAttribute("aria-hidden", String(!show));
+}
 
 // Uitgelichte kaarten (waaier, topkaart, top 4) op volgorde van de instelling "featBy":
 // Zeldzaamheid = bijzonderste eerst, bij gelijke zeldzaamheid de waardevolste; Waarde = precies andersom
@@ -916,12 +966,9 @@ function renderMain(bySet) {
   // Werkbalk: weergave, sorteren, filter
   const filtered = S.own !== "all" || S.typeF !== "all";
   out.push(el("div", { class: "toolbar" },
-    tabs(S.view, VIEW_OPTIONS, (v) => { setSetting("view", v); render(); }),
+    viewTabs(),
     el("div", { class: "toolbar-gap" }),
-    select("Sorteer op", S.sort, SORT_OPTIONS, (v) => { setSetting("sort", v); setSetting("sortRev", false); render(); }),
-    // Richting-knop: draait Nummer, Alfabet en Waarde om
-    SORT_DIRS[S.sort] ? el("button", { type: "button", class: "icon-btn sort-dir", "aria-label": `Volgorde omdraaien, nu ${SORT_DIRS[S.sort][+S.sortRev]}`,
-      title: "Volgorde omdraaien", onclick: () => { setSetting("sortRev", !S.sortRev); render(); } }, SORT_DIRS[S.sort][+S.sortRev]) : null,
+    ...sortControls(),
     el("button", { type: "button", class: "icon-btn" + (S.filterOpen || filtered ? " on" : ""), "aria-label": "Filter", "aria-pressed": String(S.filterOpen), onclick: () => { S.filterOpen = !S.filterOpen; render(); } }, icon(ICONS.filter))));
 
   // Filteren en sorteren
@@ -1607,6 +1654,7 @@ function leave() {
   closeModal();
   ui.main = null;
   $("home").replaceChildren();
+  $("home").classList.remove("head-hidden");
 }
 
 startAuth({ onEnter: enter, onLeave: leave });
