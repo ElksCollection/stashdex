@@ -564,33 +564,3 @@ button.erow:hover{background:var(--bg)}
 @media (min-width: 901px){.app.head-hidden .slimbar{margin-top:-88px;opacity:0;pointer-events:none}}
 @media (min-width: 901px) and (max-height: 820px){.app.head-hidden .slimbar{margin-top:-84px}}
 @media (prefers-reduced-motion: reduce){.slimbar{transition:none}}
-
-/* ---------- Plakbalk met de set (punt 23): optie 2 als het hoofdvlak breed is, anders optie 1 ---------- */
-/* Houder zonder hoogte; de negatieve marge heft de ruimte tussen de onderdelen van het hoofdvlak op */
-.setbar-wrap{position:sticky;top:0;height:0;overflow:visible;z-index:6;margin-bottom:-16px}
-.setbar{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:12px;min-height:52px;box-sizing:border-box;padding:6px 10px 6px 14px;background:var(--paper);border-radius:16px;box-shadow:var(--shadow-panel),inset 0 0 0 1.5px var(--line);cursor:pointer;opacity:0;transform:translateY(-12px);pointer-events:none;transition:opacity .2s var(--kk-ease),transform .35s var(--kk-spring)}
-.setbar.on{opacity:1;transform:none;pointer-events:auto}
-.setbar:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
-.setbar .kk-nav-ico{flex:none}
-.setbar-name{display:flex;flex-direction:column;min-width:110px;flex:1 1 auto}
-.setbar-name b{font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.setbar-name small{font-family:var(--font-mono);font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.setbar-count{flex:none;font-size:12px;color:var(--ink-soft);white-space:nowrap}
-.setbar-count b{font-family:var(--font-display);font-size:18px;color:var(--ink)}
-.setbar-track{display:block;flex:none;width:150px;height:10px}
-.setbar-tools{display:none}
-@container hoofdvlak (min-width: 760px){.setbar-tools{display:flex;flex:none;align-items:center;gap:8px;margin-left:4px}}
-/* Middelbreed hoofdvlak: de knoppen gaan voor, het balkje valt weg (het getal met % blijft), zodat de setnaam leesbaar blijft */
-@container hoofdvlak (min-width: 760px) and (max-width: 1099px){.setbar-track{display:none}}
-.setbar-tools .kk-tab{padding:6px 12px;font-size:13px;min-height:0}
-.setbar-tools .kk-select label{display:none}
-.setbar-tools .icon-btn{height:36px}
-@media (prefers-reduced-motion: reduce){.setbar{transition:none}}
-@media (max-width: 560px){
-  .setbar{gap:8px;padding:6px 10px}
-  .setbar-name{min-width:64px}
-  .setbar-name small{display:none}
-  .setbar-name b{font-size:15px}
-  .setbar-count b{font-size:15px}
-  .setbar-track{width:70px}
-}
